@@ -16,6 +16,9 @@ export default function Home() {
 
   const [isEditingCash, setIsEditingCash] = useState(false);
   const [editCashInput, setEditCashInput] = useState("");
+  
+  // NEW: Privacy Toggle State
+  const [isNetWorthVisible, setIsNetWorthVisible] = useState(true);
 
   useEffect(() => { checkUserAndProfile(); }, []);
 
@@ -124,17 +127,13 @@ export default function Home() {
       <div className="min-h-full flex flex-col items-center justify-center p-8 text-center bg-[#0B0F19] m-4 rounded-[2.5rem]">
         <h2 className="text-2xl font-bold text-white mb-2">Session Timed Out</h2>
         <p className="text-slate-400 mb-6 font-medium">Please sign in to access your financial data.</p>
-        <button 
-          onClick={async () => { await supabase.auth.signOut(); localStorage.clear(); window.location.href = "/"; }}
-          className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-8 py-3 rounded-2xl font-extrabold transition-all active:scale-95"
-        >
+        <button onClick={async () => { await supabase.auth.signOut(); localStorage.clear(); window.location.href = "/"; }} className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-8 py-3 rounded-2xl font-extrabold transition-all active:scale-95">
           Force Logout & Login
         </button>
       </div>
     );
   }
 
-  // Calculate total for percentages
   const totalAllocated = allocationData.reduce((acc, curr) => acc + curr.value, 0);
 
   return (
@@ -146,21 +145,33 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero Metric: True Net Worth */}
+      {/* Hero Metric: True Net Worth with TNG Privacy Toggle */}
       <div className="relative overflow-hidden bg-slate-900/50 backdrop-blur-xl border border-slate-800/50 text-white p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl mb-10 group cursor-default">
         <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500 rounded-full mix-blend-screen filter blur-[100px] opacity-20 group-hover:opacity-30 transition-opacity duration-700"></div>
         <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500 rounded-full mix-blend-screen filter blur-[100px] opacity-20 group-hover:opacity-30 transition-opacity duration-700"></div>
         
         <div className="relative z-10 flex flex-col items-center text-center">
           <h3 className="text-slate-400 text-xs md:text-sm font-bold mb-2 uppercase tracking-[0.2em]">True Net Worth</h3>
-          <p className="text-4xl md:text-8xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400">
-            RM {summary.trueNetWorth.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-          </p>
+          
+          <div className="flex items-center justify-center gap-3 md:gap-4 mt-2">
+            <p className="text-4xl md:text-7xl lg:text-8xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400 transition-all duration-300">
+              {isNetWorthVisible ? `RM ${summary.trueNetWorth.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 'RM ****'}
+            </p>
+            <button 
+              onClick={() => setIsNetWorthVisible(!isNetWorthVisible)} 
+              className="p-2 md:p-3 text-slate-500 hover:text-white transition-colors rounded-full hover:bg-slate-800/50"
+            >
+              {isNetWorthVisible ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-10 relative z-10">
-        {/* LIQUID CASH CARD */}
         <div className="bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-800/50">
           <div className="flex justify-between items-start mb-6">
             <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20"><div className="w-2 md:w-3 h-2 md:h-3 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div></div>
@@ -176,26 +187,29 @@ export default function Home() {
               <button onClick={handleUpdateCash} className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-4 py-2 rounded-xl font-extrabold text-sm transition-colors">Save</button>
             </div>
           ) : (
-            <p className="text-2xl md:text-3xl font-extrabold text-white">RM {summary.liquidCash.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+             <p className="text-2xl md:text-3xl font-extrabold text-white transition-all duration-300">
+               {isNetWorthVisible ? `RM ${summary.liquidCash.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 'RM ****'}
+             </p>
           )}
         </div>
         
-        {/* PORTFOLIO CARD */}
         <div className="bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-800/50">
           <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-sky-500/10 flex items-center justify-center mb-6 border border-sky-500/20"><div className="w-2 md:w-3 h-2 md:h-3 bg-sky-500 rounded-full shadow-[0_0_10px_rgba(14,165,233,0.5)]"></div></div>
           <h3 className="text-xs md:text-sm font-bold text-slate-500 mb-1 tracking-wide uppercase">Portfolio</h3>
-          <p className="text-2xl md:text-3xl font-extrabold text-white">RM {summary.portfolioValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+          <p className="text-2xl md:text-3xl font-extrabold text-white transition-all duration-300">
+             {isNetWorthVisible ? `RM ${summary.portfolioValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 'RM ****'}
+          </p>
         </div>
 
-        {/* EPF CARD */}
         <div className="bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-800/50">
           <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-violet-500/10 flex items-center justify-center mb-6 border border-violet-500/20"><div className="w-2 md:w-3 h-2 md:h-3 bg-violet-500 rounded-full shadow-[0_0_10px_rgba(139,92,246,0.5)]"></div></div>
           <h3 className="text-xs md:text-sm font-bold text-slate-500 mb-1 tracking-wide uppercase">Retirement (EPF)</h3>
-          <p className="text-2xl md:text-3xl font-extrabold text-white">RM {summary.epfValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+          <p className="text-2xl md:text-3xl font-extrabold text-white transition-all duration-300">
+             {isNetWorthVisible ? `RM ${summary.epfValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 'RM ****'}
+          </p>
         </div>
       </div>
 
-      {/* Enhanced Asset Allocation Section */}
       <div className="w-full relative z-10">
         <div className="bg-slate-900/40 backdrop-blur-xl p-6 md:p-10 rounded-[1.5rem] md:rounded-[2rem] border border-slate-800/50 max-w-3xl mx-auto">
           <h2 className="text-xl font-extrabold mb-8 text-white text-center tracking-tight">Asset Allocation</h2>
@@ -204,7 +218,6 @@ export default function Home() {
              <p className="text-slate-500 py-10 text-center font-medium">Add funds to see your allocation.</p>
           ) : (
             <div className="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-16">
-              {/* Doughnut Chart */}
               <div className="h-64 w-64 md:h-72 md:w-72 relative">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -218,16 +231,14 @@ export default function Home() {
                     />
                   </PieChart>
                 </ResponsiveContainer>
-                {/* Center Text inside Doughnut */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Assets</span>
                   <span className="text-white text-xl font-extrabold mt-1">
-                    RM {totalAllocated >= 1000000 ? (totalAllocated / 1000000).toFixed(2) + 'M' : totalAllocated >= 1000 ? (totalAllocated / 1000).toFixed(1) + 'k' : totalAllocated.toFixed(0)}
+                     {isNetWorthVisible ? `RM ${totalAllocated >= 1000000 ? (totalAllocated / 1000000).toFixed(2) + 'M' : totalAllocated >= 1000 ? (totalAllocated / 1000).toFixed(1) + 'k' : totalAllocated.toFixed(0)}` : '****'}
                   </span>
                 </div>
               </div>
 
-              {/* Detailed Legend */}
               <div className="flex flex-col gap-4 w-full max-w-xs">
                 {allocationData.map((item) => (
                   <div key={item.name} className="flex items-center justify-between p-3 rounded-2xl bg-slate-950/50 border border-slate-800/50">
@@ -236,7 +247,9 @@ export default function Home() {
                       <span className="text-slate-300 font-semibold text-sm">{item.name}</span>
                     </div>
                     <div className="flex flex-col items-end">
-                      <span className="text-white font-bold text-sm">RM {item.value.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                      <span className="text-white font-bold text-sm">
+                         {isNetWorthVisible ? `RM ${item.value.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}` : '****'}
+                      </span>
                       <span className="text-slate-500 text-xs font-bold">{((item.value / totalAllocated) * 100).toFixed(1)}%</span>
                     </div>
                   </div>

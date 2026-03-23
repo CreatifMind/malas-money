@@ -59,6 +59,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   if (!session) {
     return (
       <html lang="en" suppressHydrationWarning>
+        <head>
+          {/* ANTI-ZOOM LOCK */}
+          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+        </head>
         <body className="flex h-screen items-center justify-center bg-[#020617] text-slate-50 antialiased">
           <div className="bg-[#0B0F19] p-8 md:p-12 rounded-[2.5rem] shadow-2xl border border-slate-800/50 max-w-md w-full mx-4">
             <div className="text-center mb-8">
@@ -126,6 +130,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // 4. THE APP: If logged in, show the Dashboard Layout
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* ANTI-ZOOM LOCK */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+      </head>
       <body suppressHydrationWarning className="flex h-screen bg-[#020617] text-slate-50 antialiased overflow-hidden">
         {/* Pass state to Sidebar */}
         <Sidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />

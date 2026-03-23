@@ -14,76 +14,89 @@ export default function Transactions() {
   const [status, setStatus] = useState("");
   
   const [transactions, setTransactions] = useState<any[]>([]);
+  
+  // NEW: View Filter States
+  const [viewMonth, setViewMonth] = useState(new Date().getMonth());
+  const [viewYear, setViewYear] = useState(new Date().getFullYear());
+  
   const [chartData, setChartData] = useState<any[]>([]);
   const [monthlyTotal, setMonthlyTotal] = useState(0);
 
   useEffect(() => { fetchTransactions(); }, []);
+  
+  // Recalculate chart whenever data OR the selected month changes
+  useEffect(() => {
+    calculateChartData(transactions);
+  }, [viewMonth, viewYear, transactions]);
 
   const fetchTransactions = async () => {
-    // Fetching more records to ensure the monthly chart is accurate
-    const { data } = await supabase.from("transactions").select("*").order("date", { ascending: false }).limit(100);
-    if (data) {
-      setTransactions(data);
-      
-      // Calculate data for the Maybank-style Chart (Current Month Expenses)
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      
-      let total = 0;
-      const categoryMap: Record<string, number> = {};
+    const { data } = await supabase.from("transactions").select("*").order("date", { ascending: false }).limit(200);
+    if (data) setTransactions(data);
+  };
 
-      data.forEach(tx => {
-        const txDate = new Date(tx.date);
-        if (tx.type === 'expense' && txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
-          total += Number(tx.amount);
-          categoryMap[tx.category] = (categoryMap[tx.category] || 0) + Number(tx.amount);
-        }
-      });
+  const calculateChartData = (data: any[]) => {
+    let total = 0;
+    const categoryMap: Record<string, number> = {};
 
-      setMonthlyTotal(total);
+    data.forEach(tx => {
+      const txDate = new Date(tx.date);
+      if (tx.type === 'expense' && txDate.getMonth() === viewMonth && txDate.getFullYear() === viewYear) {
+        total += Number(tx.amount);
+        categoryMap[tx.category] = (categoryMap[tx.category] || 0) + Number(tx.amount);
+      }
+    });
+
+    setMonthlyTotal(total);
+    
+    const colors = ['#eab308', '#4f46e5', '#64748b', '#06b6d4', '#ec4899', '#f97316'];
+    const formattedData = Object.keys(categoryMap)
+      .sort((a, b) => categoryMap[b] - categoryMap[a])
+      .map((key, index) => ({ name: key, value: categoryMap[key], color: colors[index % colors.length] }));
       
-      // Define a premium color palette for the chart
-      const colors = ['#eab308', '#4f46e5', '#64748b', '#06b6d4', '#ec4899', '#f97316'];
-      const formattedData = Object.keys(categoryMap)
-        .sort((a, b) => categoryMap[b] - categoryMap[a]) // Sort largest first
-        .map((key, index) => ({
-          name: key,
-          value: categoryMap[key],
-          color: colors[index % colors.length]
-        }));
-        
-      setChartData(formattedData);
-    }
+    setChartData(formattedData);
+  };
+
+  const handlePrevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); } 
+    else { setViewMonth(viewMonth - 1); }
+  };
+
+  const handleNextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); } 
+    else { setViewMonth(viewMonth + 1); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus("Processing...");
-
     const finalCategory = type === "income" ? "General Income" : category;
-
     const { error } = await supabase.from("transactions").insert([{
-      amount: parseFloat(amount),
-      category: finalCategory, 
-      type, 
-      description: type === "income" ? (isRecurring ? "Recurring Income" : "One-time Income") : description, 
-      date,
+      amount: parseFloat(amount), category: finalCategory, type, 
+      description: type === "income" ? (isRecurring ? "Recurring Income" : "One-time Income") : description, date,
     }]);
 
     if (!error) {
-      setStatus("Success");
-      setAmount(""); setCategory(""); setDescription(""); setIsRecurring(false);
-      fetchTransactions();
-      setTimeout(() => setStatus(""), 2000);
-    } else {
-      setStatus("Error: " + error.message);
-    }
+      setStatus("Success"); setAmount(""); setCategory(""); setDescription(""); setIsRecurring(false);
+      fetchTransactions(); setTimeout(() => setStatus(""), 2000);
+    } else setStatus("Error: " + error.message);
   };
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("transactions").delete().eq("id", id);
     if (!error) fetchTransactions();
   };
+
+  // Helper to get nice icons for the legend instead of circles
+  const getCategoryIcon = (catName: string, color: string) => {
+    const name = catName.toLowerCase();
+    if (name.includes('saving') || name.includes('goal')) return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>;
+    if (name.includes('invest') || name.includes('portfolio')) return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>;
+    if (name.includes('epf') || name.includes('work') || name.includes('tax')) return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
+    if (name.includes('food') || name.includes('dine')) return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>;
+    return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>; // Generic Hexagon
+  };
+
+  const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
   return (
     <div className="min-h-full bg-[#0B0F19] rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-8 m-2 md:m-4 shadow-2xl text-slate-50 animate-in fade-in duration-500 pb-20">
@@ -95,15 +108,11 @@ export default function Transactions() {
       </header>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-10">
-        
-        {/* Left Column: The Interactive Log Form */}
         <div className="xl:col-span-5">
           <div className="bg-slate-900/50 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-800/50 relative overflow-hidden transition-all duration-700">
-            {/* DYNAMIC AMBIENT GLOW */}
             <div className={`absolute -top-20 -right-20 w-64 h-64 rounded-full mix-blend-screen filter blur-[80px] opacity-20 transition-all duration-700 ${type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
 
             <form onSubmit={handleSubmit} className="relative z-10 flex flex-col">
-              {/* Type Switcher */}
               <div className="flex p-1.5 bg-slate-950/50 backdrop-blur-md rounded-2xl mb-8 border border-slate-800/50">
                 <button type="button" onClick={() => setType('expense')} className={`flex-1 py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-bold tracking-wide transition-all duration-300 ${type === 'expense' ? 'bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.3)]' : 'text-slate-500 hover:text-slate-300'}`}>
                    Expense
@@ -113,7 +122,6 @@ export default function Transactions() {
                 </button>
               </div>
 
-              {/* Amount Input */}
               <div className="text-center mb-8">
                 <p className="text-[10px] md:text-xs font-bold text-slate-500 mb-2 uppercase tracking-[0.2em]">Amount</p>
                 <div className="flex items-center justify-center text-5xl md:text-6xl font-extrabold text-white">
@@ -122,7 +130,6 @@ export default function Transactions() {
                 </div>
               </div>
 
-              {/* Dynamic Inputs */}
               <div className="space-y-3 md:space-y-4 mb-6">
                 {type === 'expense' ? (
                   <>
@@ -137,11 +144,9 @@ export default function Transactions() {
                     </button>
                   </div>
                 )}
-                
                 <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={`w-full p-3.5 md:p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl outline-none transition-all text-white text-sm md:text-base [color-scheme:dark] ${type === 'income' ? 'focus:border-emerald-500/50' : 'focus:border-rose-500/50'}`} />
               </div>
 
-              {/* DYNAMIC ACTION BUTTON */}
               <button type="submit" className={`w-full font-extrabold py-3.5 md:py-4 rounded-2xl transition-all shadow-xl active:scale-[0.98] text-sm md:text-base ${type === 'income' ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 shadow-emerald-500/20' : 'bg-rose-500 text-white hover:bg-rose-400 shadow-rose-500/20'}`}>
                 {status || (type === 'income' ? 'Deposit Funds' : 'Log Expense')}
               </button>
@@ -149,18 +154,27 @@ export default function Transactions() {
           </div>
         </div>
 
-        {/* Right Column: Chart & History */}
         <div className="xl:col-span-7 flex flex-col gap-6 md:gap-8">
-          
-          {/* MAYBANK MAE STYLE EXPENSE CHART */}
-          <div className="bg-white p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] shadow-xl relative overflow-hidden">
+          {/* DARK MODE MAYBANK CHART with Month Toggle */}
+          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] shadow-xl relative overflow-hidden">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg md:text-xl font-bold text-slate-900">Expenses</h2>
-              <span className="text-xs font-bold text-slate-500 uppercase bg-slate-100 px-3 py-1 rounded-full">{new Date().toLocaleString('default', { month: 'short', year: 'numeric' })}</span>
+              <h2 className="text-lg md:text-xl font-bold text-white">Expenses</h2>
+              
+              <div className="flex items-center gap-3 bg-slate-950/80 border border-slate-800/80 rounded-full px-2 py-1">
+                <button onClick={handlePrevMonth} className="p-1.5 text-slate-500 hover:text-white transition-colors rounded-full hover:bg-slate-800">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <span className="text-xs font-bold text-white uppercase tracking-widest w-20 text-center">
+                  {viewYear} {monthNames[viewMonth]}
+                </span>
+                <button onClick={handleNextMonth} className="p-1.5 text-slate-500 hover:text-white transition-colors rounded-full hover:bg-slate-800">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+              </div>
             </div>
             
             {chartData.length === 0 ? (
-              <p className="text-slate-400 py-10 text-center font-medium">No expenses logged this month.</p>
+              <p className="text-slate-500 py-10 text-center font-medium">No expenses logged for {monthNames[viewMonth]} {viewYear}.</p>
             ) : (
               <>
                 <div className="h-56 md:h-64 w-full relative flex justify-center">
@@ -169,31 +183,29 @@ export default function Transactions() {
                       <Pie data={chartData} cx="50%" cy="50%" innerRadius={70} outerRadius={95} paddingAngle={2} dataKey="value" stroke="none">
                         {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                       </Pie>
-                      <Tooltip formatter={(value: any) => `RM ${value.toLocaleString(undefined, {minimumFractionDigits: 2})}`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Tooltip formatter={(value: any) => `RM ${value.toLocaleString(undefined, {minimumFractionDigits: 2})}`} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '1rem', color: '#f8fafc', fontWeight: 'bold' }} />
                     </PieChart>
                   </ResponsiveContainer>
                   
-                  {/* Center Text */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-slate-500 text-xs font-medium">This month's</span>
-                    <span className="text-slate-500 text-xs font-medium mb-1">spending</span>
-                    <span className="text-slate-900 text-xl md:text-2xl font-extrabold tracking-tight">
+                    <span className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Total</span>
+                    <span className="text-white text-xl md:text-2xl font-extrabold tracking-tight">
                       RM {monthlyTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                     </span>
                   </div>
                 </div>
 
-                {/* Categories Breakdown */}
+                {/* Enhanced Legend with SVG Icons */}
                 <div className="mt-6 overflow-x-auto pb-4 hide-scrollbar">
-                  <div className="flex gap-4 min-w-max">
+                  <div className="flex justify-center gap-6 min-w-max px-2">
                     {chartData.map((item) => (
                       <div key={item.name} className="flex flex-col items-center gap-2">
-                        <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-sm" style={{ backgroundColor: `${item.color}15` }}>
-                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg border" style={{ backgroundColor: `${item.color}15`, borderColor: `${item.color}30` }}>
+                           {getCategoryIcon(item.name, item.color)}
                         </div>
                         <div className="text-center">
-                          <p className="text-[11px] font-bold text-slate-900 w-20 truncate">{item.name}</p>
-                          <p className="text-[10px] font-bold text-rose-500">-RM {item.value.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+                          <p className="text-[11px] font-bold text-slate-300 w-20 truncate">{item.name}</p>
+                          <p className="text-[10px] font-extrabold text-white">RM {item.value.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
                         </div>
                       </div>
                     ))}
@@ -203,7 +215,6 @@ export default function Transactions() {
             )}
           </div>
 
-          {/* Mobile-Optimized History Feed */}
           <div className="bg-slate-900/30 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-800/30 flex-1">
             <h2 className="text-lg md:text-xl font-bold mb-6 text-white">Recent History</h2>
             <div className="space-y-3">
