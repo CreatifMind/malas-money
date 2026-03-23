@@ -3,211 +3,168 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/utils/supabase";
 
-export default function EPFTracker() {
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 10 }, (_, i) => (currentYear - i).toString());
-  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
+export default function EPFVault() {
+  const [employeeContribution, setEmployeeContribution] = useState("");
+  const [employerContribution, setEmployerContribution] = useState("");
   const [month, setMonth] = useState("");
-  const [year, setYear] = useState(currentYear.toString());
-  const [employeeAmount, setEmployeeAmount] = useState("");
+  const [year, setYear] = useState(new Date().getFullYear().toString());
   const [status, setStatus] = useState("");
   
-  // NEW EPF UI States
-  const [hasEmployer, setHasEmployer] = useState(true);
-  const [salary, setSalary] = useState("");
-  const [employerAmount, setEmployerAmount] = useState("");
-  const [isRecurring, setIsRecurring] = useState(false);
-  
-  // NEW: Dynamic Percentage States
-  const [matchPercentage, setMatchPercentage] = useState<number | string>(12);
-  const [isEditingMatch, setIsEditingMatch] = useState(false);
-
   const [epfLogs, setEpfLogs] = useState<any[]>([]);
-  const [totals, setTotals] = useState({ employee: 0, employer: 0, combined: 0 });
+  const [totalEpf, setTotalEpf] = useState(0);
+  
+  // The "Brain Upgrade" State
+  const [baseSalary, setBaseSalary] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
 
-  useEffect(() => { fetchEpfData(); }, []);
+  useEffect(() => { 
+    fetchEPFData(); 
+  }, []);
 
-  // UPDATED: Auto-calculate company match based on dynamic percentage
-  useEffect(() => {
-    if (hasEmployer && salary) {
-      const percentage = typeof matchPercentage === 'number' ? matchPercentage : parseFloat(matchPercentage) || 0;
-      setEmployerAmount((parseFloat(salary) * (percentage / 100)).toFixed(2));
-    } else if (!hasEmployer) {
-      setEmployerAmount("0");
-    }
-  }, [salary, hasEmployer, matchPercentage]);
+  const fetchEPFData = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    setUserId(session.user.id);
 
-  const fetchEpfData = async () => {
-    const { data } = await supabase.from("epf_logs").select("*").order("year", { ascending: false }).order("month", { ascending: false });
+    // Fetch the salary they saved on the Deductions page
+    const { data: profile } = await supabase.from('profiles').select('base_salary').eq('id', session.user.id).single();
+    if (profile && profile.base_salary) setBaseSalary(profile.base_salary);
+
+    const { data } = await supabase.from("epf_logs").select("*").order("created_at", { ascending: false });
     if (data) {
       setEpfLogs(data);
-      let empTotal = 0; let emplyrTotal = 0;
-      data.forEach(log => { empTotal += Number(log.employee_contribution); emplyrTotal += Number(log.employer_contribution); });
-      setTotals({ employee: empTotal, employer: emplyrTotal, combined: empTotal + emplyrTotal });
+      let total = 0;
+      data.forEach(log => { total += (Number(log.employee_contribution) + Number(log.employer_contribution)); });
+      setTotalEpf(total);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStatus("Processing...");
-    const empAmount = parseFloat(employeeAmount);
-    const emplyrAmount = hasEmployer ? parseFloat(employerAmount) : 0;
+  const handleStandardLog = async () => {
+    if (baseSalary === 0 || !userId) return;
+    setStatus("Logging Standard Month...");
     
-    const { error } = await supabase.from("epf_logs").insert([{ 
-      month, year: parseInt(year), employee_contribution: empAmount, employer_contribution: emplyrAmount 
-    }]);
-    
-    if (!error) {
-      await supabase.from("transactions").insert([{
-        amount: empAmount, category: `EPF Deduction`, type: "expense", 
-        description: `${month} ${year} Contribution ${isRecurring ? '(Recurring)' : ''}`,
-        date: new Date().toISOString().split('T')[0]
-      }]);
+    const empEPF = baseSalary * 0.11;
+    const employerEPF = baseSalary * (baseSalary > 5000 ? 0.12 : 0.13);
+    const currentMonth = new Date().toLocaleString('default', { month: 'long' });
+    const currentYear = new Date().getFullYear();
 
-      setStatus("Success"); setMonth(""); setEmployeeAmount(""); setSalary(""); 
-      fetchEpfData(); setTimeout(() => setStatus(""), 2000);
-    } else setStatus("Error: " + error.message);
+    const { error } = await supabase.from("epf_logs").insert([{
+      employee_contribution: empEPF, employer_contribution: employerEPF, month: currentMonth, year: currentYear
+    }]);
+
+    if (!error) {
+      setStatus("Saved!"); fetchEPFData(); setTimeout(() => setStatus(""), 2000);
+    } else {
+      setStatus("Error: " + error.message);
+    }
+  };
+
+  const handleCustomSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatus("Saving custom log...");
+    const { error } = await supabase.from("epf_logs").insert([{
+      employee_contribution: parseFloat(employeeContribution), employer_contribution: parseFloat(employerContribution), month, year: parseInt(year)
+    }]);
+    if (!error) {
+      setStatus("Success"); setEmployeeContribution(""); setEmployerContribution(""); setMonth("");
+      fetchEPFData(); setTimeout(() => setStatus(""), 2000);
+    } else {
+      setStatus("Error: " + error.message);
+    }
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("epf_logs").delete().eq("id", id);
-    if (!error) fetchEpfData();
+    await supabase.from("epf_logs").delete().eq("id", id);
+    fetchEPFData();
   };
 
   return (
-    <div className="min-h-full bg-[#0B0F19] rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-8 m-2 md:m-4 shadow-2xl text-slate-50 animate-in fade-in duration-500 pb-20">
-      <header className="mb-6 md:mb-10 px-2 md:px-4">
-        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">EPF Vault</h1>
-        <p className="text-slate-400 mt-1 font-medium text-sm md:text-base">Tracking your compound retirement.</p>
+    <div className="min-h-full bg-white dark:bg-[#0B0F19] rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-8 m-2 md:m-4 shadow-xl dark:shadow-2xl text-slate-900 dark:text-slate-50 animate-in fade-in duration-500 pb-20 transition-colors duration-300">
+      
+      <header className="mb-6 md:mb-10 px-2 md:px-4 flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white transition-colors duration-300">EPF Vault</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium text-sm md:text-base transition-colors duration-300">Track your retirement compounding.</p>
+        </div>
+        <div className="bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 px-4 py-3 rounded-2xl text-right animate-in zoom-in-95 transition-colors duration-300">
+          <p className="text-[10px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-widest mb-0.5">Total Vault</p>
+          <p className="text-xl md:text-2xl font-extrabold text-violet-500 dark:text-violet-300 transition-colors duration-300">RM {totalEpf.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+        </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8 md:mb-10">
-        <div className="relative overflow-hidden bg-slate-900/50 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-800/50 shadow-xl group">
-          <div className="absolute -bottom-10 -right-10 w-32 md:w-40 h-32 md:h-40 bg-violet-600 rounded-full mix-blend-screen filter blur-[60px] opacity-20 group-hover:opacity-30 transition-opacity"></div>
-          <h3 className="text-xs md:text-sm font-bold text-slate-500 mb-1 md:mb-2 uppercase tracking-wider relative z-10">Total Accumulated</h3>
-          <p className="text-3xl md:text-4xl font-extrabold text-white relative z-10">RM {totals.combined.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-        </div>
-        <div className="bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-800/50">
-          <h3 className="text-xs md:text-sm font-bold text-slate-500 mb-1 md:mb-2 uppercase tracking-wider">Your Contribution</h3>
-          <p className="text-2xl md:text-3xl font-bold text-slate-300">RM {totals.employee.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-        </div>
-        <div className="bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-800/50">
-          <h3 className="text-xs md:text-sm font-bold text-slate-500 mb-1 md:mb-2 uppercase tracking-wider">Company Match</h3>
-          <p className="text-2xl md:text-3xl font-bold text-slate-300">RM {totals.employer.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
-        <div className="lg:col-span-5">
-          <div className="bg-slate-900/50 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-800/50">
-            <h2 className="text-lg md:text-xl font-bold mb-6 md:mb-8 text-white">Log Deduction</h2>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4 md:gap-5">
+        <div className="lg:col-span-5 flex flex-col gap-6">
+          
+          {/* THE BRAIN UPGRADE: Fast Log */}
+          {baseSalary > 0 && (
+            <div className="bg-indigo-50 dark:bg-indigo-500/10 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-indigo-200 dark:border-indigo-500/30 transition-colors duration-300 relative overflow-hidden">
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500 rounded-full mix-blend-screen filter blur-[50px] opacity-10 dark:opacity-20 transition-opacity"></div>
+              <h2 className="text-lg font-bold mb-2 text-indigo-900 dark:text-indigo-100 transition-colors duration-300 relative z-10">Fast Log (Standard Month)</h2>
+              <p className="text-xs text-indigo-700 dark:text-indigo-300 mb-6 relative z-10">Based on your saved RM {baseSalary.toLocaleString()} salary.</p>
               
-              <div className="grid grid-cols-2 gap-3 md:gap-4">
-                <div className="relative">
-                  <select required value={month} onChange={(e) => setMonth(e.target.value)} className="w-full p-3.5 md:p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 text-white appearance-none text-sm md:text-base">
-                    <option value="" disabled>Month</option>
-                    {months.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-                <div className="relative">
-                   <select required value={year} onChange={(e) => setYear(e.target.value)} className="w-full p-3.5 md:p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 text-white appearance-none text-sm md:text-base">
-                     {years.map(y => <option key={y} value={y}>{y}</option>)}
-                   </select>
-                </div>
-              </div>
+              <button onClick={handleStandardLog} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold py-4 rounded-2xl transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98] text-sm md:text-base relative z-10">
+                {status && status.includes('Standard') ? status : `Log RM ${((baseSalary * 0.11) + (baseSalary * (baseSalary > 5000 ? 0.12 : 0.13))).toLocaleString(undefined, {minimumFractionDigits:2})}`}
+              </button>
+            </div>
+          )}
 
-              <input type="number" step="0.01" required value={employeeAmount} onChange={(e) => setEmployeeAmount(e.target.value)} className="w-full p-3.5 md:p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 text-white placeholder-slate-600 text-sm md:text-base" placeholder="Your Deduction (RM)" />
+          {/* Manual Log for Bonuses/Voluntary */}
+          <div className="bg-slate-50 dark:bg-slate-900/50 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800/50 transition-colors duration-300">
+            <h2 className="text-lg font-bold mb-6 text-slate-900 dark:text-white transition-colors duration-300">Custom Log</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">Use this for bonuses or voluntary i-Simpan top-ups.</p>
+            
+            <form onSubmit={handleCustomSubmit} className="flex flex-col gap-4 md:gap-5">
+              <div className="flex gap-4">
+                <input type="text" required value={month} onChange={(e) => setMonth(e.target.value)} className="w-full p-3.5 bg-white dark:bg-slate-950/50 border border-slate-300 dark:border-slate-800/80 rounded-2xl outline-none focus:border-violet-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 transition-colors duration-300 text-sm" placeholder="Month (e.g., Dec)" />
+                <input type="number" required value={year} onChange={(e) => setYear(e.target.value)} className="w-full p-3.5 bg-white dark:bg-slate-950/50 border border-slate-300 dark:border-slate-800/80 rounded-2xl outline-none focus:border-violet-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 transition-colors duration-300 text-sm" placeholder="Year" />
+              </div>
               
-              <div className="flex items-center justify-between p-4 bg-violet-500/5 border border-violet-500/20 rounded-2xl">
-                <span className="text-sm font-bold text-violet-400">Employer Contribution?</span>
-                <button type="button" onClick={() => setHasEmployer(!hasEmployer)} className={`w-12 h-6 rounded-full transition-all relative ${hasEmployer ? 'bg-violet-500' : 'bg-slate-800'}`}>
-                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${hasEmployer ? 'left-7' : 'left-1'}`}></div>
-                </button>
+              <div className="relative group">
+                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 font-bold text-sm">RM</div>
+                 <input type="number" step="0.01" required value={employeeContribution} onChange={(e) => setEmployeeContribution(e.target.value)} className="w-full pl-12 p-3.5 bg-white dark:bg-slate-950/50 border border-slate-300 dark:border-slate-800/80 rounded-2xl outline-none focus:border-violet-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 transition-colors duration-300 text-sm" placeholder="Employee Cut (You)" />
               </div>
 
-              {hasEmployer && (
-                <div className="p-4 bg-violet-500/5 rounded-2xl border border-violet-500/20 animate-in fade-in zoom-in-95">
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="block text-xs font-bold text-violet-400">Base Salary (Auto-calculates {matchPercentage}% match)</label>
-                    <button 
-                      type="button" 
-                      onClick={() => setIsEditingMatch(!isEditingMatch)}
-                      className="text-[10px] md:text-xs font-bold text-violet-300 bg-violet-500/20 hover:bg-violet-500/40 px-2 py-1 rounded-md transition-colors"
-                    >
-                      {isEditingMatch ? "Done" : "Edit %"}
-                    </button>
-                  </div>
-
-                  {isEditingMatch && (
-                    <div className="mb-3 flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
-                      <input 
-                        type="number" 
-                        step="0.1" 
-                        value={matchPercentage} 
-                        onChange={(e) => setMatchPercentage(e.target.value)} 
-                        className="w-20 p-2 text-sm font-bold text-white bg-slate-950/80 border border-violet-500/50 rounded-lg outline-none focus:border-violet-400" 
-                        placeholder="%" 
-                      />
-                      <span className="text-xs font-medium text-slate-400">% Employer Match</span>
-                    </div>
-                  )}
-
-                  <input type="number" step="0.01" value={salary} onChange={(e) => setSalary(e.target.value)} className="w-full p-3 text-lg font-bold text-white bg-slate-950/80 border border-violet-500/30 rounded-xl outline-none focus:border-violet-400 placeholder-slate-700" placeholder="RM Salary" />
-                  <div className="mt-3 flex justify-between items-center text-sm">
-                    <span className="text-slate-500 font-bold">Company Match:</span>
-                    <span className="text-violet-400 font-extrabold">RM {employerAmount || "0.00"}</span>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between p-4 bg-slate-950/50 border border-slate-800/50 rounded-2xl">
-                <span className="text-sm font-bold text-slate-400">Recurring Monthly?</span>
-                <button type="button" onClick={() => setIsRecurring(!isRecurring)} className={`w-12 h-6 rounded-full transition-all relative ${isRecurring ? 'bg-emerald-500' : 'bg-slate-800'}`}>
-                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isRecurring ? 'left-7' : 'left-1'}`}></div>
-                </button>
+              <div className="relative group">
+                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 font-bold text-sm">RM</div>
+                 <input type="number" step="0.01" required value={employerContribution} onChange={(e) => setEmployerContribution(e.target.value)} className="w-full pl-12 p-3.5 bg-white dark:bg-slate-950/50 border border-slate-300 dark:border-slate-800/80 rounded-2xl outline-none focus:border-violet-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 transition-colors duration-300 text-sm" placeholder="Employer Match (Them)" />
               </div>
 
-              <button type="submit" className="mt-2 md:mt-4 w-full bg-violet-600 hover:bg-violet-500 text-white font-extrabold py-3.5 md:py-4 rounded-2xl transition-all shadow-[0_0_20px_rgba(124,58,237,0.2)] active:scale-[0.98] text-sm md:text-base">
-                {status || "Save Record"}
+              <button type="submit" className="mt-2 w-full bg-slate-800 hover:bg-slate-700 dark:bg-violet-600 dark:hover:bg-violet-500 text-white font-extrabold py-3.5 rounded-2xl transition-all shadow-lg active:scale-[0.98] text-sm">
+                {(status && !status.includes('Standard')) ? status : "Log Custom Amount"}
               </button>
             </form>
           </div>
         </div>
 
         <div className="lg:col-span-7">
-          <div className="bg-slate-900/30 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-800/30 h-full">
-            <h2 className="text-lg md:text-xl font-bold mb-6 md:mb-8 text-white">Vault History</h2>
-            <div className="flex flex-col gap-4">
+          <div className="bg-slate-50 dark:bg-slate-900/30 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800/30 h-full transition-colors duration-300">
+            <h2 className="text-lg md:text-xl font-bold mb-6 text-slate-900 dark:text-white transition-colors duration-300">Contribution History</h2>
+            
+            <div className="flex flex-col gap-3">
               {epfLogs.map((log) => {
-                const totalAdded = Number(log.employee_contribution) + Number(log.employer_contribution);
+                const rowTotal = Number(log.employee_contribution) + Number(log.employer_contribution);
                 return (
-                  <div key={log.id} className="bg-slate-950/40 border border-slate-800/50 p-4 md:p-5 rounded-2xl hover:bg-slate-900/60 transition-colors relative group">
-                    <div className="flex justify-between items-center mb-3">
-                      <p className="font-extrabold text-white text-base md:text-lg">{log.month} {log.year}</p>
-                      <div className="flex items-center gap-3">
-                        <span className="font-bold text-violet-400 text-base md:text-lg">
-                          +RM {totalAdded.toLocaleString(undefined, {minimumFractionDigits:2})}
-                        </span>
-                        <button onClick={() => handleDelete(log.id)} className="opacity-100 md:opacity-0 group-hover:opacity-100 p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all">
-                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center pt-3 border-t border-slate-800/50">
-                      <div>
-                        <p className="text-[10px] md:text-xs text-slate-500 font-bold uppercase tracking-wider mb-0.5">Your Deduction</p>
-                        <p className="text-xs md:text-sm text-slate-300 font-medium">RM {Number(log.employee_contribution).toLocaleString(undefined, {minimumFractionDigits:2})}</p>
-                      </div>
-                      <div className="text-right">
-                         <p className="text-[10px] md:text-xs text-slate-500 font-bold uppercase tracking-wider mb-0.5">Company Match</p>
-                         <p className="text-xs md:text-sm text-slate-300 font-medium">RM {Number(log.employer_contribution).toLocaleString(undefined, {minimumFractionDigits:2})}</p>
-                      </div>
-                    </div>
-                  </div>
+                 <div key={log.id} className="p-4 bg-white dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800/50 rounded-2xl flex flex-col md:flex-row md:justify-between md:items-center group hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors duration-300 shadow-sm dark:shadow-none gap-4">
+                   <div className="flex items-center justify-between md:justify-start gap-4">
+                     <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-violet-100 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 font-bold text-xs uppercase text-center leading-tight border border-violet-200 dark:border-violet-500/20">
+                       {log.month.substring(0,3)}<br/>{log.year}
+                     </div>
+                     <div>
+                       <p className="font-bold text-slate-900 dark:text-white text-base transition-colors duration-300">+ RM {rowTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                       <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">
+                         You: {Number(log.employee_contribution).toLocaleString(undefined, {maximumFractionDigits: 0})} | Employer: {Number(log.employer_contribution).toLocaleString(undefined, {maximumFractionDigits: 0})}
+                       </p>
+                     </div>
+                   </div>
+                   <button onClick={() => handleDelete(log.id)} className="self-end md:self-auto opacity-100 md:opacity-0 group-hover:opacity-100 p-2 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                   </button>
+                 </div>
                 );
               })}
+              {epfLogs.length === 0 && (
+                <p className="text-center text-slate-500 py-8 font-medium">No EPF contributions logged yet.</p>
+              )}
             </div>
           </div>
         </div>

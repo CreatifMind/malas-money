@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import MobileHeader from "@/components/MobileHeader";
+import { ThemeProvider } from "@/components/ThemeProvider"; // <-- NEW IMPORT
 import { supabase } from "@/utils/supabase";
 import "./globals.css";
 
@@ -63,14 +64,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* STRICT VIEWPORT LOCK */}
           <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
         </head>
-        {/* Added touch-none and overscroll-none to lock the background */}
-        <body className="flex h-screen items-center justify-center bg-[#020617] text-slate-50 antialiased touch-none overscroll-none">
-          <div className="bg-[#0B0F19] p-8 md:p-12 rounded-[2.5rem] shadow-2xl border border-slate-800/50 max-w-md w-full mx-4">
+        {/* ADDED suppressHydrationWarning HERE TOO */}
+        <body suppressHydrationWarning className="flex h-screen items-center justify-center bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-50 antialiased touch-none overscroll-none transition-colors duration-300">
+          <div className="bg-white dark:bg-[#0B0F19] p-8 md:p-12 rounded-[2.5rem] shadow-xl dark:shadow-2xl border border-slate-200 dark:border-slate-800/50 max-w-md w-full mx-4 transition-colors duration-300">
             <div className="text-center mb-8">
-              <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 tracking-tight mb-2">
+              <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-cyan-500 dark:from-emerald-400 dark:to-cyan-400 tracking-tight mb-2">
                 Malas Money
               </h1>
-              <p className="text-slate-400 font-medium">Sign in to your financial hub.</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium">Sign in to your financial hub.</p>
             </div>
 
             <form onSubmit={handleAuth} className="flex flex-col gap-5">
@@ -81,7 +82,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   value={email} 
                   onChange={e => setEmail(e.target.value)} 
                   required 
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-white outline-none focus:ring-1 focus:ring-emerald-500 transition-all" 
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-emerald-500 transition-all" 
                 />
               </div>
               
@@ -92,32 +93,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   value={password} 
                   onChange={e => setPassword(e.target.value)} 
                   required 
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-white outline-none focus:ring-1 focus:ring-emerald-500 transition-all" 
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-emerald-500 transition-all" 
                 />
               </div>
 
               <button 
                 type="submit" 
                 disabled={authLoading} 
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-3.5 mt-2 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.15)] disabled:opacity-50"
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-white dark:text-slate-950 font-extrabold py-3.5 mt-2 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.15)] disabled:opacity-50"
               >
                 {authLoading ? "Authenticating..." : isSignUp ? "Sign Up" : "Sign In"}
               </button>
 
               {authError && (
-                <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm rounded-xl text-center font-medium">
+                <div className="p-4 bg-rose-100 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 text-sm rounded-xl text-center font-medium">
                   {authError}
                 </div>
               )}
             </form>
             
             <div className="mt-8 flex flex-col items-center gap-3 text-sm">
-              <button className="text-slate-500 hover:text-slate-300 transition-colors">
+              <button className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
                 Forgot your password?
               </button>
               <button 
                 onClick={() => { setIsSignUp(!isSignUp); setAuthError(null); }} 
-                className="text-slate-500 hover:text-emerald-400 transition-colors"
+                className="text-slate-500 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
               >
                 {isSignUp ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
               </button>
@@ -135,20 +136,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* STRICT VIEWPORT LOCK */}
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
       </head>
-      {/* Added touch-none and overscroll-none to lock the app wrapper from bouncing/zooming */}
-      <body suppressHydrationWarning className="flex h-screen bg-[#020617] text-slate-50 antialiased overflow-hidden touch-none overscroll-none">
-        {/* Pass state to Sidebar */}
-        <Sidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+      {/* Added Light/Dark mode classes to the Main App body */}
+      <body suppressHydrationWarning className="flex h-screen bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-50 antialiased overflow-hidden touch-none overscroll-none transition-colors duration-300">
         
-        <div className="flex-1 flex flex-col min-w-0 h-full relative">
-          {/* Mobile Header triggers the open state */}
-          <MobileHeader onOpen={() => setIsMenuOpen(true)} />
+        {/* Wrapped everything in the ThemeProvider */}
+        <ThemeProvider>
+          {/* Pass state to Sidebar */}
+          <Sidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
           
-          {/* Re-enabled safe vertical scrolling here with touch-pan-y */}
-          <main className="flex-1 overflow-y-auto touch-pan-y overscroll-none pb-[env(safe-area-inset-bottom)]">
-            {children}
-          </main>
-        </div>
+          <div className="flex-1 flex flex-col min-w-0 h-full relative">
+            {/* Mobile Header triggers the open state */}
+            <MobileHeader onOpen={() => setIsMenuOpen(true)} />
+            
+            {/* Re-enabled safe vertical scrolling here with touch-pan-y */}
+            <main className="flex-1 overflow-y-auto touch-pan-y overscroll-none pb-[env(safe-area-inset-bottom)]">
+              {children}
+            </main>
+          </div>
+        </ThemeProvider>
+
       </body>
     </html>
   );
