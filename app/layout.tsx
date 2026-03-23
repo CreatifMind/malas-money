@@ -60,10 +60,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return (
       <html lang="en" suppressHydrationWarning>
         <head>
-          {/* ANTI-ZOOM LOCK */}
-          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+          {/* STRICT VIEWPORT LOCK */}
+          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
         </head>
-        <body className="flex h-screen items-center justify-center bg-[#020617] text-slate-50 antialiased">
+        {/* Added touch-none and overscroll-none to lock the background */}
+        <body className="flex h-screen items-center justify-center bg-[#020617] text-slate-50 antialiased touch-none overscroll-none">
           <div className="bg-[#0B0F19] p-8 md:p-12 rounded-[2.5rem] shadow-2xl border border-slate-800/50 max-w-md w-full mx-4">
             <div className="text-center mb-8">
               <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 tracking-tight mb-2">
@@ -131,10 +132,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* ANTI-ZOOM LOCK */}
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+        {/* STRICT VIEWPORT LOCK */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
       </head>
-      <body suppressHydrationWarning className="flex h-screen bg-[#020617] text-slate-50 antialiased overflow-hidden">
+      {/* Added touch-none and overscroll-none to lock the app wrapper from bouncing/zooming */}
+      <body suppressHydrationWarning className="flex h-screen bg-[#020617] text-slate-50 antialiased overflow-hidden touch-none overscroll-none">
         {/* Pass state to Sidebar */}
         <Sidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
         
@@ -142,7 +144,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Mobile Header triggers the open state */}
           <MobileHeader onOpen={() => setIsMenuOpen(true)} />
           
-          <main className="flex-1 overflow-y-auto">
+          {/* Re-enabled safe vertical scrolling here with touch-pan-y */}
+          <main className="flex-1 overflow-y-auto touch-pan-y overscroll-none pb-[env(safe-area-inset-bottom)]">
             {children}
           </main>
         </div>
