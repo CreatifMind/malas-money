@@ -15,6 +15,9 @@ export default function Home() {
   const [allocationData, setAllocationData] = useState<any[]>([]);
   
   const [isNetWorthVisible, setIsNetWorthVisible] = useState(true);
+  
+  // NEW: Payday Notification State
+  const [paydayNote, setPaydayNote] = useState("");
 
   useEffect(() => { checkUserAndProfile(); }, []);
 
@@ -29,6 +32,8 @@ export default function Home() {
         setNeedsOnboarding(true);
         setLoading(false);
       } else {
+        // Run the Payday Engine BEFORE fetching the dashboard data
+        await checkAndDepositPayday(profile.base_salary);
         fetchDashboardData(profile.starting_balance);
       }
     } else {
@@ -36,6 +41,79 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  // ==========================================
+  // THE SMART PAYDAY ENGINE
+  // ==========================================
+  const checkAndDepositPayday = async (baseSalary: number) => {
+    if (baseSalary <= 0) return;
+
+    const today = new Date();
+    // Only trigger if it's the 25th or later in the current month
+    if (today.getDate() < 25) return;
+
+    const currentMonth = today.toLocaleString('default', { month: 'long' });
+    const currentYear = today.getFullYear();
+    const descriptionString = `Auto-Deposit: Net Salary (${currentMonth} ${currentYear})`;
+
+    // Check if we already paid you this month!
+    const { data: existingTx } = await supabase.from('transactions')
+      .select('*')
+      .eq('description', descriptionString)
+      .limit(1);
+
+    if (!existingTx || existingTx.length === 0) {
+      // 1. Fetch live Deductions data to get accurate Net Pay
+      const [insRes, trRes] = await Promise.all([
+        supabase.from('insurances').select('*'),
+        supabase.from('tax_reliefs').select('*').eq('year', 2025)
+      ]);
+
+      // 2. Replicate the Net Pay Math
+      let monthlyInsurance = 0;
+      if (insRes.data) insRes.data.forEach(i => monthlyInsurance += Number(i.amount));
+
+      let customReliefsTotal = 0;
+      if (trRes.data) trRes.data.forEach(r => customReliefsTotal += Number(r.amount));
+
+      const empEPF = baseSalary * 0.11;
+      const annualSalary = baseSalary * 12;
+      const annualEPF = empEPF * 12;
+
+      const baseRelief = 9000;
+      const epfReliefClaimable = Math.min(annualEPF, 4000);
+      const totalReliefs = baseRelief + epfReliefClaimable + customReliefsTotal;
+
+      let chargeableIncome = Math.max(annualSalary - totalReliefs, 0);
+      let annualTax = 0;
+      if (chargeableIncome > 2000000) { annualTax += (chargeableIncome - 2000000) * 0.30; chargeableIncome = 2000000; }
+      if (chargeableIncome > 600000) { annualTax += (chargeableIncome - 600000) * 0.28; chargeableIncome = 600000; }
+      if (chargeableIncome > 400000) { annualTax += (chargeableIncome - 400000) * 0.25; chargeableIncome = 400000; }
+      if (chargeableIncome > 100000) { annualTax += (chargeableIncome - 100000) * 0.24; chargeableIncome = 100000; }
+      if (chargeableIncome > 70000) { annualTax += (chargeableIncome - 70000) * 0.21; chargeableIncome = 70000; }
+      if (chargeableIncome > 50000) { annualTax += (chargeableIncome - 50000) * 0.14; chargeableIncome = 50000; }
+      if (chargeableIncome > 35000) { annualTax += (chargeableIncome - 35000) * 0.08; chargeableIncome = 35000; }
+      if (chargeableIncome > 20000) { annualTax += (chargeableIncome - 20000) * 0.03; chargeableIncome = 20000; }
+      if (chargeableIncome > 5000) { annualTax += (chargeableIncome - 5000) * 0.01; }
+
+      const monthlyTax = annualTax / 12;
+      const finalNetPay = baseSalary - empEPF - monthlyTax - monthlyInsurance;
+
+      // 3. Inject the Cash into the Ledger!
+      await supabase.from('transactions').insert([{
+        amount: finalNetPay,
+        category: "Salary",
+        type: "income",
+        description: descriptionString,
+        date: today.toISOString().split('T')[0]
+      }]);
+
+      // 4. Trigger the UI Notification
+      setPaydayNote(`RM ${finalNetPay.toLocaleString(undefined, {minimumFractionDigits:2})} added to Liquid Cash for ${currentMonth}.`);
+      setTimeout(() => setPaydayNote(""), 8000); // Hide after 8 seconds
+    }
+  };
+  // ==========================================
 
   const handleOnboardingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,6 +201,22 @@ export default function Home() {
 
   return (
     <div className="min-h-[calc(100vh-2rem)] bg-white dark:bg-[#0B0F19] rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-8 m-2 md:m-4 shadow-xl dark:shadow-2xl text-slate-900 dark:text-slate-50 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 overflow-hidden relative transition-colors duration-300">
+      
+      {/* NEW: PAYDAY TOAST NOTIFICATION */}
+      {paydayNote && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-10 fade-in duration-500">
+          <div className="bg-emerald-50 dark:bg-emerald-500/10 backdrop-blur-xl border border-emerald-200 dark:border-emerald-500/30 shadow-2xl px-6 py-4 rounded-full flex items-center gap-4">
+            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]">
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <div>
+              <p className="text-emerald-800 dark:text-emerald-100 font-extrabold text-sm tracking-wide">Payday Arrived! 🎉</p>
+              <p className="text-emerald-600 dark:text-emerald-300 text-xs font-medium">{paydayNote}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="mb-10 flex justify-between items-end relative z-10">
         <div>
           <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white transition-colors duration-300">Overview</h1>

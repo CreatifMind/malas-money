@@ -21,7 +21,7 @@ export default function DeductionsHub() {
   });
 
   const [epfTotal, setEpfTotal] = useState(0);
-  const [dividendRate, setDividendRate] = useState("6.15");
+  const [dividendRate, setDividendRate] = useState("0");
 
   useEffect(() => { fetchData(); }, []);
 
@@ -159,42 +159,50 @@ export default function DeductionsHub() {
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-10 animate-in fade-in slide-in-from-bottom-4">
             
-            <div className="bg-slate-50 dark:bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800/50 transition-colors duration-300">
-              <h2 className="text-lg font-bold mb-6 text-slate-900 dark:text-white transition-colors duration-300">Monthly Breakdown</h2>
-              
-              <div className="space-y-4">
-                <div className="flex justify-between items-center p-4 bg-white dark:bg-slate-950/40 rounded-2xl border border-slate-200 dark:border-slate-800/50 transition-colors duration-300 shadow-sm dark:shadow-none">
-                  <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Gross Salary</span>
-                  <span className="text-base font-extrabold text-slate-900 dark:text-white transition-colors duration-300">RM {salaryNum.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
-                </div>
+            <div className="bg-slate-50 dark:bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800/50 transition-colors duration-300 flex flex-col justify-between">
+              <div>
+                <h2 className="text-lg font-bold mb-6 text-slate-900 dark:text-white transition-colors duration-300">Monthly Breakdown</h2>
                 
-                <div className="flex justify-between items-center p-4 bg-rose-50 dark:bg-rose-500/5 rounded-2xl border border-rose-100 dark:border-rose-500/10 transition-colors duration-300">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold text-rose-600 dark:text-rose-400">EPF Deduction (11%)</span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-500 mt-1">+ Employer RM {employerEPF.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center p-4 bg-white dark:bg-slate-950/40 rounded-2xl border border-slate-200 dark:border-slate-800/50 transition-colors duration-300 shadow-sm dark:shadow-none">
+                    <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Gross Salary</span>
+                    <span className="text-base font-extrabold text-slate-900 dark:text-white transition-colors duration-300">RM {salaryNum.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
                   </div>
-                  <span className="text-base font-extrabold text-rose-600 dark:text-rose-400">-RM {empEPF.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
-                </div>
+                  
+                  <div className="flex justify-between items-center p-4 bg-rose-50 dark:bg-rose-500/5 rounded-2xl border border-rose-100 dark:border-rose-500/10 transition-colors duration-300">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-rose-600 dark:text-rose-400">EPF Deduction (11%)</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-500 mt-1">+ Employer RM {employerEPF.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
+                    </div>
+                    <span className="text-base font-extrabold text-rose-600 dark:text-rose-400">-RM {empEPF.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
+                  </div>
 
-                <div className="flex justify-between items-center p-4 bg-rose-50 dark:bg-rose-500/5 rounded-2xl border border-rose-100 dark:border-rose-500/10 transition-colors duration-300">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold text-rose-600 dark:text-rose-400">Est. Tax (PCB)</span>
-                    <span className="text-[10px] text-slate-500 mt-1">Based on YA 2025 brackets</span>
+                  <div className="flex justify-between items-center p-4 bg-rose-50 dark:bg-rose-500/5 rounded-2xl border border-rose-100 dark:border-rose-500/10 transition-colors duration-300">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-rose-600 dark:text-rose-400">Est. Tax (PCB)</span>
+                      <span className="text-[10px] text-slate-500 mt-1">Based on YA 2025 brackets</span>
+                    </div>
+                    <span className="text-base font-extrabold text-rose-600 dark:text-rose-400">-RM {monthlyTax.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
                   </div>
-                  <span className="text-base font-extrabold text-rose-600 dark:text-rose-400">-RM {monthlyTax.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
-                </div>
 
-                {monthlyInsurance > 0 && (
-                  <div className="flex justify-between items-center p-4 bg-amber-50 dark:bg-amber-500/5 rounded-2xl border border-amber-100 dark:border-amber-500/10 transition-colors duration-300">
-                    <span className="text-sm font-bold text-amber-600 dark:text-amber-400">Fixed Insurances</span>
-                    <span className="text-base font-extrabold text-amber-600 dark:text-amber-400">-RM {monthlyInsurance.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
-                  </div>
-                )}
+                  {monthlyInsurance > 0 && (
+                    <div className="flex justify-between items-center p-4 bg-amber-50 dark:bg-amber-500/5 rounded-2xl border border-amber-100 dark:border-amber-500/10 transition-colors duration-300">
+                      <span className="text-sm font-bold text-amber-600 dark:text-amber-400">Fixed Insurances</span>
+                      <span className="text-base font-extrabold text-amber-600 dark:text-amber-400">-RM {monthlyInsurance.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center transition-colors duration-300">
-                <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Est. Net Pay</span>
-                <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">RM {netPay.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
+              <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-2 transition-colors duration-300">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Est. Net Pay</span>
+                  <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">RM {netPay.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
+                </div>
+                <div className="flex items-center justify-end gap-1.5 text-[10px] md:text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  Auto-syncs to your Liquid Cash on the 25th of every month.
+                </div>
               </div>
             </div>
 
@@ -202,7 +210,7 @@ export default function DeductionsHub() {
                <div className="absolute -top-20 -right-20 w-48 h-48 bg-indigo-600 rounded-full mix-blend-screen filter blur-[80px] opacity-10 dark:opacity-20 transition-opacity duration-300"></div>
               
               <h2 className="text-lg font-bold mb-2 text-slate-900 dark:text-white relative z-10 transition-colors duration-300">EPF Dividend Forecaster</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 relative z-10 transition-colors duration-300">Based on your current logged Vault Total.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 relative z-10 transition-colors duration-300">Enter the latest annual percentage announced by KWSP to forecast your returns.</p>
 
               <div className="p-5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-2xl mb-6 relative z-10 transition-colors duration-300">
                 <div className="flex justify-between items-center mb-4">
@@ -219,10 +227,20 @@ export default function DeductionsHub() {
                 </div>
               </div>
 
-              <div className="text-center mt-8 relative z-10">
+              <div className="text-center mt-6 relative z-10">
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest mb-2 transition-colors duration-300">Estimated Annual Dividend</p>
                 <p className="text-4xl font-extrabold text-indigo-600 dark:text-indigo-400 transition-colors duration-300">
                   +RM {((epfTotal * (parseFloat(dividendRate) || 0)) / 100).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}
+                </p>
+              </div>
+
+              {/* Accuracy Reminder Note */}
+              <div className="mt-8 p-4 bg-slate-100 dark:bg-slate-950/50 rounded-2xl border border-slate-200 dark:border-slate-800/50 flex gap-3 relative z-10 transition-colors duration-300">
+                <div className="text-indigo-500 mt-0.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                </div>
+                <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                  <strong className="text-slate-700 dark:text-slate-300">Accuracy Reminder:</strong> Dividends are paid once a year. When officially credited, remember to log that amount as a <span className="text-indigo-500 font-bold">Custom Log</span> in the EPF Vault to keep your total balance accurate.
                 </p>
               </div>
             </div>

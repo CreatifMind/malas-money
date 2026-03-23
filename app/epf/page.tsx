@@ -13,9 +13,10 @@ export default function EPFVault() {
   const [epfLogs, setEpfLogs] = useState<any[]>([]);
   const [totalEpf, setTotalEpf] = useState(0);
   
-  // The "Brain Upgrade" State
   const [baseSalary, setBaseSalary] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
+  const [autoSyncMessage, setAutoSyncMessage] = useState("");
+  const [isRefreshingSync, setIsRefreshingSync] = useState(false);
 
   useEffect(() => { 
     fetchEPFData(); 
@@ -26,37 +27,84 @@ export default function EPFVault() {
     if (!session) return;
     setUserId(session.user.id);
 
-    // Fetch the salary they saved on the Deductions page
     const { data: profile } = await supabase.from('profiles').select('base_salary').eq('id', session.user.id).single();
-    if (profile && profile.base_salary) setBaseSalary(profile.base_salary);
+    const currentSalary = profile?.base_salary || 0;
+    setBaseSalary(currentSalary);
 
     const { data } = await supabase.from("epf_logs").select("*").order("created_at", { ascending: false });
+    
     if (data) {
-      setEpfLogs(data);
+      let currentLogs = [...data];
+
+      if (currentSalary > 0) {
+        const currentMonth = new Date().toLocaleString('default', { month: 'long' });
+        const currentYear = new Date().getFullYear();
+
+        const hasCurrentMonth = currentLogs.some(log => log.month === currentMonth && log.year === currentYear);
+
+        if (!hasCurrentMonth) {
+          const empEPF = currentSalary * 0.11;
+          const employerEPF = currentSalary * (currentSalary > 5000 ? 0.12 : 0.13);
+
+          const { data: newLog, error: insertError } = await supabase.from("epf_logs").insert([{
+            employee_contribution: empEPF, 
+            employer_contribution: employerEPF, 
+            month: currentMonth, 
+            year: currentYear
+          }]).select().single(); 
+
+          if (!insertError && newLog) {
+            currentLogs = [newLog, ...currentLogs];
+            setAutoSyncMessage(`Auto-synced RM ${((empEPF) + (employerEPF)).toLocaleString(undefined, {minimumFractionDigits:2})} for ${currentMonth}`);
+            setTimeout(() => setAutoSyncMessage(""), 6000); 
+          }
+        }
+      }
+
+      setEpfLogs(currentLogs);
+      
       let total = 0;
-      data.forEach(log => { total += (Number(log.employee_contribution) + Number(log.employer_contribution)); });
+      currentLogs.forEach(log => { total += (Number(log.employee_contribution) + Number(log.employer_contribution)); });
       setTotalEpf(total);
     }
   };
 
-  const handleStandardLog = async () => {
+  // NEW: The Manual Recalculate Logic
+  const handleRefreshSync = async () => {
     if (baseSalary === 0 || !userId) return;
-    setStatus("Logging Standard Month...");
-    
-    const empEPF = baseSalary * 0.11;
-    const employerEPF = baseSalary * (baseSalary > 5000 ? 0.12 : 0.13);
+    setIsRefreshingSync(true);
+
     const currentMonth = new Date().toLocaleString('default', { month: 'long' });
     const currentYear = new Date().getFullYear();
 
-    const { error } = await supabase.from("epf_logs").insert([{
-      employee_contribution: empEPF, employer_contribution: employerEPF, month: currentMonth, year: currentYear
-    }]);
+    const empEPF = baseSalary * 0.11;
+    const employerEPF = baseSalary * (baseSalary > 5000 ? 0.12 : 0.13);
 
-    if (!error) {
-      setStatus("Saved!"); fetchEPFData(); setTimeout(() => setStatus(""), 2000);
+    // Find the current month's log to update it
+    const existingLog = epfLogs.find(log => log.month === currentMonth && log.year === currentYear);
+
+    if (existingLog) {
+      const { error } = await supabase.from("epf_logs")
+        .update({ employee_contribution: empEPF, employer_contribution: employerEPF })
+        .eq('id', existingLog.id);
+      
+      if (!error) {
+         setAutoSyncMessage(`Recalculated: RM ${((empEPF) + (employerEPF)).toLocaleString(undefined, {minimumFractionDigits:2})} for ${currentMonth}`);
+         fetchEPFData();
+      }
     } else {
-      setStatus("Error: " + error.message);
+      // Just in case they deleted it and hit refresh
+      const { error } = await supabase.from("epf_logs").insert([{
+          employee_contribution: empEPF, employer_contribution: employerEPF, month: currentMonth, year: currentYear
+      }]);
+      if (!error) {
+         setAutoSyncMessage(`Synced RM ${((empEPF) + (employerEPF)).toLocaleString(undefined, {minimumFractionDigits:2})} for ${currentMonth}`);
+         fetchEPFData();
+      }
     }
+    
+    setIsRefreshingSync(false);
+    setTimeout(() => setAutoSyncMessage(""), 6000);
   };
 
   const handleCustomSubmit = async (e: React.FormEvent) => {
@@ -95,20 +143,41 @@ export default function EPFVault() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
         <div className="lg:col-span-5 flex flex-col gap-6">
           
-          {/* THE BRAIN UPGRADE: Fast Log */}
+          {/* Smart Auto-Sync Status Card WITH REFRESH BUTTON */}
           {baseSalary > 0 && (
-            <div className="bg-indigo-50 dark:bg-indigo-500/10 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-indigo-200 dark:border-indigo-500/30 transition-colors duration-300 relative overflow-hidden">
-              <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500 rounded-full mix-blend-screen filter blur-[50px] opacity-10 dark:opacity-20 transition-opacity"></div>
-              <h2 className="text-lg font-bold mb-2 text-indigo-900 dark:text-indigo-100 transition-colors duration-300 relative z-10">Fast Log (Standard Month)</h2>
-              <p className="text-xs text-indigo-700 dark:text-indigo-300 mb-6 relative z-10">Based on your saved RM {baseSalary.toLocaleString()} salary.</p>
+            <div className="bg-emerald-50 dark:bg-emerald-500/10 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-emerald-200 dark:border-emerald-500/30 transition-colors duration-300 relative overflow-hidden">
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-emerald-500 rounded-full mix-blend-screen filter blur-[50px] opacity-10 dark:opacity-20 transition-opacity"></div>
               
-              <button onClick={handleStandardLog} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold py-4 rounded-2xl transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98] text-sm md:text-base relative z-10">
-                {status && status.includes('Standard') ? status : `Log RM ${((baseSalary * 0.11) + (baseSalary * (baseSalary > 5000 ? 0.12 : 0.13))).toLocaleString(undefined, {minimumFractionDigits:2})}`}
-              </button>
+              <div className="flex items-center justify-between mb-2 relative z-10">
+                <div className="flex items-center gap-3">
+                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.8)]"></div>
+                   <h2 className="text-lg font-bold text-emerald-900 dark:text-emerald-100 transition-colors duration-300">Smart Auto-Sync Active</h2>
+                </div>
+                
+                {/* REFRESH BUTTON */}
+                <button 
+                  onClick={handleRefreshSync} 
+                  disabled={isRefreshingSync}
+                  className="p-2 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl hover:bg-emerald-200 dark:hover:bg-emerald-500/30 transition-colors disabled:opacity-50"
+                  title="Recalculate current month based on latest salary"
+                >
+                  <svg className={`w-4 h-4 md:w-5 md:h-5 ${isRefreshingSync ? 'animate-spin' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><polyline points="21 3 21 8 16 8"></polyline></svg>
+                </button>
+              </div>
+              
+              <p className="text-xs text-emerald-700 dark:text-emerald-300 relative z-10 leading-relaxed">
+                Your standard deductions (based on RM {baseSalary.toLocaleString()}) are automatically logged into your vault. Changed your salary? Hit refresh to recalculate.
+              </p>
+
+              {autoSyncMessage && (
+                 <div className="mt-5 p-3.5 bg-white dark:bg-emerald-500/20 rounded-xl border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-300 shadow-sm dark:shadow-none">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                   {autoSyncMessage}
+                 </div>
+              )}
             </div>
           )}
 
-          {/* Manual Log for Bonuses/Voluntary */}
           <div className="bg-slate-50 dark:bg-slate-900/50 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800/50 transition-colors duration-300">
             <h2 className="text-lg font-bold mb-6 text-slate-900 dark:text-white transition-colors duration-300">Custom Log</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">Use this for bonuses or voluntary i-Simpan top-ups.</p>
@@ -130,7 +199,7 @@ export default function EPFVault() {
               </div>
 
               <button type="submit" className="mt-2 w-full bg-slate-800 hover:bg-slate-700 dark:bg-violet-600 dark:hover:bg-violet-500 text-white font-extrabold py-3.5 rounded-2xl transition-all shadow-lg active:scale-[0.98] text-sm">
-                {(status && !status.includes('Standard')) ? status : "Log Custom Amount"}
+                {status || "Log Custom Amount"}
               </button>
             </form>
           </div>
