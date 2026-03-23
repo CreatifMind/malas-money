@@ -18,20 +18,25 @@ export default function EPFTracker() {
   const [salary, setSalary] = useState("");
   const [employerAmount, setEmployerAmount] = useState("");
   const [isRecurring, setIsRecurring] = useState(false);
+  
+  // NEW: Dynamic Percentage States
+  const [matchPercentage, setMatchPercentage] = useState<number | string>(12);
+  const [isEditingMatch, setIsEditingMatch] = useState(false);
 
   const [epfLogs, setEpfLogs] = useState<any[]>([]);
   const [totals, setTotals] = useState({ employee: 0, employer: 0, combined: 0 });
 
   useEffect(() => { fetchEpfData(); }, []);
 
-  // NEW: Auto-calculate 12% company match based on salary
+  // UPDATED: Auto-calculate company match based on dynamic percentage
   useEffect(() => {
     if (hasEmployer && salary) {
-      setEmployerAmount((parseFloat(salary) * 0.12).toFixed(2));
+      const percentage = typeof matchPercentage === 'number' ? matchPercentage : parseFloat(matchPercentage) || 0;
+      setEmployerAmount((parseFloat(salary) * (percentage / 100)).toFixed(2));
     } else if (!hasEmployer) {
       setEmployerAmount("0");
     }
-  }, [salary, hasEmployer]);
+  }, [salary, hasEmployer, matchPercentage]);
 
   const fetchEpfData = async () => {
     const { data } = await supabase.from("epf_logs").select("*").order("year", { ascending: false }).order("month", { ascending: false });
@@ -124,7 +129,31 @@ export default function EPFTracker() {
 
               {hasEmployer && (
                 <div className="p-4 bg-violet-500/5 rounded-2xl border border-violet-500/20 animate-in fade-in zoom-in-95">
-                  <label className="block text-xs font-bold text-violet-400 mb-2">Base Salary (Auto-calculates 12% match)</label>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-xs font-bold text-violet-400">Base Salary (Auto-calculates {matchPercentage}% match)</label>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsEditingMatch(!isEditingMatch)}
+                      className="text-[10px] md:text-xs font-bold text-violet-300 bg-violet-500/20 hover:bg-violet-500/40 px-2 py-1 rounded-md transition-colors"
+                    >
+                      {isEditingMatch ? "Done" : "Edit %"}
+                    </button>
+                  </div>
+
+                  {isEditingMatch && (
+                    <div className="mb-3 flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
+                      <input 
+                        type="number" 
+                        step="0.1" 
+                        value={matchPercentage} 
+                        onChange={(e) => setMatchPercentage(e.target.value)} 
+                        className="w-20 p-2 text-sm font-bold text-white bg-slate-950/80 border border-violet-500/50 rounded-lg outline-none focus:border-violet-400" 
+                        placeholder="%" 
+                      />
+                      <span className="text-xs font-medium text-slate-400">% Employer Match</span>
+                    </div>
+                  )}
+
                   <input type="number" step="0.01" value={salary} onChange={(e) => setSalary(e.target.value)} className="w-full p-3 text-lg font-bold text-white bg-slate-950/80 border border-violet-500/30 rounded-xl outline-none focus:border-violet-400 placeholder-slate-700" placeholder="RM Salary" />
                   <div className="mt-3 flex justify-between items-center text-sm">
                     <span className="text-slate-500 font-bold">Company Match:</span>
