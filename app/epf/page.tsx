@@ -30,33 +30,19 @@ export default function EPFTracker() {
     setStatus("Processing...");
     const empAmount = parseFloat(employeeAmount);
     
-    // 1. Log the EPF Vault entry
     const { error } = await supabase.from("epf_logs").insert([{ 
-      month, 
-      year: parseInt(year), 
-      employee_contribution: empAmount, 
-      employer_contribution: parseFloat(employerAmount) 
+      month, year: parseInt(year), employee_contribution: empAmount, employer_contribution: parseFloat(employerAmount) 
     }]);
     
     if (!error) {
-      // 2. The Magic: Auto-Deduct ONLY the employee's portion from liquid cash!
       await supabase.from("transactions").insert([{
-        amount: empAmount,
-        category: `EPF Deduction`,
-        type: "expense",
-        description: `${month} ${year} Contribution`,
-        date: new Date().toISOString().split('T')[0] // Today's date
+        amount: empAmount, category: `EPF Deduction`, type: "expense", description: `${month} ${year} Contribution`,
+        date: new Date().toISOString().split('T')[0]
       }]);
 
-      setStatus("Success"); 
-      setMonth(""); 
-      setEmployeeAmount(""); 
-      setEmployerAmount("");
-      fetchEpfData(); 
-      setTimeout(() => setStatus(""), 2000);
-    } else {
-      setStatus("Error: " + error.message);
-    }
+      setStatus("Success"); setMonth(""); setEmployeeAmount(""); setEmployerAmount("");
+      fetchEpfData(); setTimeout(() => setStatus(""), 2000);
+    } else setStatus("Error: " + error.message);
   };
 
   const handleDelete = async (id: string) => {
@@ -67,92 +53,94 @@ export default function EPFTracker() {
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   return (
-    <div className="min-h-full bg-[#0B0F19] rounded-[2.5rem] p-8 m-4 shadow-2xl text-slate-50 animate-in fade-in duration-500">
-      <header className="mb-10 flex justify-between items-end px-4">
-        <div>
-          <h1 className="text-4xl font-extrabold tracking-tight text-white">EPF Vault</h1>
-          <p className="text-slate-400 mt-1 font-medium">Tracking your compound retirement.</p>
-        </div>
+    <div className="min-h-full bg-[#0B0F19] rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-8 m-2 md:m-4 shadow-2xl text-slate-50 animate-in fade-in duration-500 pb-20">
+      <header className="mb-6 md:mb-10 px-2 md:px-4">
+        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">EPF Vault</h1>
+        <p className="text-slate-400 mt-1 font-medium text-sm md:text-base">Tracking your compound retirement.</p>
       </header>
 
       {/* Top Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <div className="relative overflow-hidden bg-slate-900/50 backdrop-blur-xl p-8 rounded-[2rem] border border-slate-800/50 shadow-xl group">
-          <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-violet-600 rounded-full mix-blend-screen filter blur-[60px] opacity-20 group-hover:opacity-30 transition-opacity"></div>
-          <h3 className="text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider relative z-10">Total Accumulated</h3>
-          <p className="text-4xl font-extrabold text-white relative z-10">RM {totals.combined.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8 md:mb-10">
+        <div className="relative overflow-hidden bg-slate-900/50 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-800/50 shadow-xl group">
+          <div className="absolute -bottom-10 -right-10 w-32 md:w-40 h-32 md:h-40 bg-violet-600 rounded-full mix-blend-screen filter blur-[60px] opacity-20 group-hover:opacity-30 transition-opacity"></div>
+          <h3 className="text-xs md:text-sm font-bold text-slate-500 mb-1 md:mb-2 uppercase tracking-wider relative z-10">Total Accumulated</h3>
+          <p className="text-3xl md:text-4xl font-extrabold text-white relative z-10">RM {totals.combined.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
         </div>
-        <div className="bg-slate-900/40 backdrop-blur-xl p-8 rounded-[2rem] border border-slate-800/50">
-          <h3 className="text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider">Your Contribution</h3>
-          <p className="text-3xl font-bold text-slate-300">RM {totals.employee.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+        <div className="bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-800/50">
+          <h3 className="text-xs md:text-sm font-bold text-slate-500 mb-1 md:mb-2 uppercase tracking-wider">Your Contribution</h3>
+          <p className="text-2xl md:text-3xl font-bold text-slate-300">RM {totals.employee.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
         </div>
-        <div className="bg-slate-900/40 backdrop-blur-xl p-8 rounded-[2rem] border border-slate-800/50">
-          <h3 className="text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider">Company Match</h3>
-          <p className="text-3xl font-bold text-slate-300">RM {totals.employer.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+        <div className="bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-800/50">
+          <h3 className="text-xs md:text-sm font-bold text-slate-500 mb-1 md:mb-2 uppercase tracking-wider">Company Match</h3>
+          <p className="text-2xl md:text-3xl font-bold text-slate-300">RM {totals.employer.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
         {/* The Form */}
         <div className="lg:col-span-4">
-          <div className="bg-slate-900/50 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-800/50">
-            <h2 className="text-xl font-bold mb-8 text-white">Log Deduction</h2>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <div className="bg-slate-900/50 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-800/50">
+            <h2 className="text-lg md:text-xl font-bold mb-6 md:mb-8 text-white">Log Deduction</h2>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4 md:gap-5">
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 md:gap-4">
                 <div className="relative">
-                  <select required value={month} onChange={(e) => setMonth(e.target.value)} className="w-full p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 text-white appearance-none">
+                  <select required value={month} onChange={(e) => setMonth(e.target.value)} className="w-full p-3.5 md:p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 text-white appearance-none text-sm md:text-base">
                     <option value="" disabled>Month</option>
                     {months.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
-                <input type="number" required value={year} onChange={(e) => setYear(e.target.value)} className="w-full p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 text-white placeholder-slate-600" placeholder="Year" />
+                <input type="number" required value={year} onChange={(e) => setYear(e.target.value)} className="w-full p-3.5 md:p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 text-white placeholder-slate-600 text-sm md:text-base" placeholder="Year" />
               </div>
 
-              <input type="number" step="0.01" required value={employeeAmount} onChange={(e) => setEmployeeAmount(e.target.value)} className="w-full p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 text-white placeholder-slate-600" placeholder="Employee Deduction (RM)" />
-              <input type="number" step="0.01" required value={employerAmount} onChange={(e) => setEmployerAmount(e.target.value)} className="w-full p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 text-white placeholder-slate-600" placeholder="Company Match (RM)" />
+              <input type="number" step="0.01" required value={employeeAmount} onChange={(e) => setEmployeeAmount(e.target.value)} className="w-full p-3.5 md:p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 text-white placeholder-slate-600 text-sm md:text-base" placeholder="Employee Deduction (RM)" />
+              <input type="number" step="0.01" required value={employerAmount} onChange={(e) => setEmployerAmount(e.target.value)} className="w-full p-3.5 md:p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 text-white placeholder-slate-600 text-sm md:text-base" placeholder="Company Match (RM)" />
 
-              <button type="submit" className="mt-4 w-full bg-violet-600 hover:bg-violet-500 text-white font-extrabold py-4 rounded-2xl transition-all shadow-[0_0_20px_rgba(124,58,237,0.2)] active:scale-[0.98]">
+              <button type="submit" className="mt-2 md:mt-4 w-full bg-violet-600 hover:bg-violet-500 text-white font-extrabold py-3.5 md:py-4 rounded-2xl transition-all shadow-[0_0_20px_rgba(124,58,237,0.2)] active:scale-[0.98] text-sm md:text-base">
                 {status || "Save Record"}
               </button>
             </form>
           </div>
         </div>
 
-        {/* History Table */}
+        {/* The Mobile-Optimized History Feed */}
         <div className="lg:col-span-8">
-          <div className="bg-slate-900/30 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-800/30 h-full">
-            <h2 className="text-xl font-bold mb-8 text-white">Vault History</h2>
+          <div className="bg-slate-900/30 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-800/30 h-full">
+            <h2 className="text-lg md:text-xl font-bold mb-6 md:mb-8 text-white">Vault History</h2>
             
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse whitespace-nowrap">
-                <thead>
-                  <tr className="border-b border-slate-800/80 text-xs text-slate-500 uppercase tracking-wider">
-                    <th className="pb-4 font-bold">Period</th>
-                    <th className="pb-4 font-bold">Employee</th>
-                    <th className="pb-4 font-bold">Employer</th>
-                    <th className="pb-4 font-bold text-violet-400">Total Added</th>
-                    <th className="pb-4"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/50">
-                  {epfLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-800/40 transition-colors group">
-                      <td className="py-4 pr-4 font-extrabold text-white">{log.month} {log.year}</td>
-                      <td className="py-4 text-slate-300 font-medium">RM {Number(log.employee_contribution).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
-                      <td className="py-4 text-slate-300 font-medium">RM {Number(log.employer_contribution).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
-                      <td className="py-4 font-extrabold text-violet-400">
-                        RM {(Number(log.employee_contribution) + Number(log.employer_contribution)).toLocaleString(undefined, {minimumFractionDigits:2})}
-                      </td>
-                      <td className="py-4 text-right">
-                        <button onClick={() => handleDelete(log.id)} className="opacity-0 group-hover:opacity-100 p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all">
+            <div className="flex flex-col gap-4">
+              {epfLogs.map((log) => {
+                const totalAdded = Number(log.employee_contribution) + Number(log.employer_contribution);
+                return (
+                  <div key={log.id} className="bg-slate-950/40 border border-slate-800/50 p-4 md:p-5 rounded-2xl hover:bg-slate-900/60 transition-colors relative group">
+                    <div className="flex justify-between items-center mb-3">
+                      <p className="font-extrabold text-white text-base md:text-lg">{log.month} {log.year}</p>
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-violet-400 text-base md:text-lg">
+                          +RM {totalAdded.toLocaleString(undefined, {minimumFractionDigits:2})}
+                        </span>
+                        <button onClick={() => handleDelete(log.id)} className="opacity-100 md:opacity-0 group-hover:opacity-100 p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all">
                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center pt-3 border-t border-slate-800/50">
+                      <div>
+                        <p className="text-[10px] md:text-xs text-slate-500 font-bold uppercase tracking-wider mb-0.5">Your Deduction</p>
+                        <p className="text-xs md:text-sm text-slate-300 font-medium">RM {Number(log.employee_contribution).toLocaleString(undefined, {minimumFractionDigits:2})}</p>
+                      </div>
+                      <div className="text-right">
+                         <p className="text-[10px] md:text-xs text-slate-500 font-bold uppercase tracking-wider mb-0.5">Company Match</p>
+                         <p className="text-xs md:text-sm text-slate-300 font-medium">RM {Number(log.employer_contribution).toLocaleString(undefined, {minimumFractionDigits:2})}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {epfLogs.length === 0 && (
+                <p className="text-center text-slate-500 py-8 font-medium">No EPF logs yet.</p>
+              )}
             </div>
           </div>
         </div>

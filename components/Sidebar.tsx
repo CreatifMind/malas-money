@@ -9,7 +9,12 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const handleLogout = async () => await supabase.auth.signOut();
+  const handleLogout = async () => {
+    console.log("Signing out...");
+    await supabase.auth.signOut();
+    // This forces a full refresh to clear any "ghost" data and return to login
+    window.location.href = "/"; 
+  };
 
   return (
     <>
@@ -30,7 +35,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 tracking-tight">
             Malas Money
           </h2>
-          {/* Close button inside sidebar for mobile */}
           <button onClick={onClose} className="md:hidden text-slate-500 hover:text-white">✕</button>
         </div>
         
@@ -45,7 +49,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <Link 
               key={item.name} 
               href={item.path} 
-              onClick={onClose} // Closes menu automatically after clicking a link
+              onClick={onClose}
               className="px-4 py-3.5 rounded-2xl hover:bg-emerald-500/10 hover:text-emerald-400 transition-all font-semibold flex items-center gap-3"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={item.icon} /></svg>
