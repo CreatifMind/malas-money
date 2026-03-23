@@ -11,8 +11,35 @@ export default function SavingsGoals() {
 
   const [goals, setGoals] = useState<any[]>([]);
   const [fundAmounts, setFundAmounts] = useState<Record<string, string>>({});
+  
+  // NEW: Liquid Cash State
+  const [liquidCash, setLiquidCash] = useState(0);
 
-  useEffect(() => { fetchGoals(); }, []);
+  useEffect(() => { 
+    fetchGoals(); 
+    fetchLiquidCash();
+  }, []);
+
+  const fetchLiquidCash = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    
+    const [profileRes, txRes] = await Promise.all([
+      supabase.from('profiles').select('starting_balance').eq('id', session.user.id).single(),
+      supabase.from('transactions').select('*')
+    ]);
+
+    const baseAmount = profileRes.data?.starting_balance || 0;
+    let totalIncome = 0; let totalExpense = 0;
+    
+    if (txRes.data) {
+      txRes.data.forEach((tx) => {
+        if (tx.type === "income") totalIncome += Number(tx.amount);
+        if (tx.type === "expense") totalExpense += Number(tx.amount);
+      });
+    }
+    setLiquidCash(baseAmount + totalIncome - totalExpense);
+  };
 
   const fetchGoals = async () => {
     const { data } = await supabase.from("goals").select("*").order("target_date", { ascending: true });
@@ -34,6 +61,12 @@ export default function SavingsGoals() {
   const handleAddFunds = async (goalId: string, goalName: string, currentAmount: number) => {
     const amountToAdd = parseFloat(fundAmounts[goalId] || "0");
     if (amountToAdd <= 0) return;
+    
+    // Prevent overdrawing Liquid Cash
+    if (amountToAdd > liquidCash) {
+      alert("Insufficient Liquid Cash to fund this goal.");
+      return;
+    }
 
     await supabase.from("goals").update({ current_amount: currentAmount + amountToAdd }).eq("id", goalId);
     await supabase.from("transactions").insert([{
@@ -43,6 +76,7 @@ export default function SavingsGoals() {
 
     setFundAmounts({ ...fundAmounts, [goalId]: "" });
     fetchGoals();
+    fetchLiquidCash(); // Refresh cash after adding funds
   };
 
   const handleDelete = async (id: string) => {
@@ -52,13 +86,20 @@ export default function SavingsGoals() {
 
   return (
     <div className="min-h-full bg-[#0B0F19] rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-8 m-2 md:m-4 shadow-2xl text-slate-50 animate-in fade-in duration-500 pb-20">
-      <header className="mb-6 md:mb-10 px-2 md:px-4">
-        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">Savings Goals</h1>
-        <p className="text-slate-400 mt-1 font-medium text-sm md:text-base">Visualize your financial targets.</p>
+      
+      {/* HEADER WITH LIQUID CASH BADGE */}
+      <header className="mb-6 md:mb-10 px-2 md:px-4 flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">Savings Goals</h1>
+          <p className="text-slate-400 mt-1 font-medium text-sm md:text-base">Visualize your financial targets.</p>
+        </div>
+        <div className="bg-emerald-500/10 border border-emerald-500/20 px-3 md:px-5 py-2 md:py-3 rounded-2xl text-right animate-in zoom-in-95">
+          <p className="text-[9px] md:text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-0.5">Available Cash</p>
+          <p className="text-base md:text-xl font-extrabold text-emerald-300">RM {liquidCash.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
-        {/* Create Form */}
         <div className="lg:col-span-4">
           <div className="bg-slate-900/50 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-800/50 relative overflow-hidden">
              <div className="absolute -top-20 -left-20 w-48 md:w-64 h-48 md:h-64 bg-blue-600 rounded-full mix-blend-screen filter blur-[80px] opacity-20"></div>
@@ -77,7 +118,6 @@ export default function SavingsGoals() {
           </div>
         </div>
 
-        {/* Active Goals */}
         <div className="lg:col-span-8">
           <div className="bg-slate-900/30 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-800/30 h-full">
             <h2 className="text-lg md:text-xl font-bold mb-6 md:mb-8 text-white">Your Active Targets</h2>
@@ -94,7 +134,7 @@ export default function SavingsGoals() {
                       <div className="text-right flex items-center gap-2 md:gap-4">
                         <p className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">{percentage}%</p>
                         <button onClick={() => handleDelete(goal.id)} className="opacity-100 md:opacity-0 group-hover:opacity-100 p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 md:w-[18px] h-4 md:h-[18px]"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" className="md:w-[18px] md:h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
                       </div>
                     </div>
@@ -103,7 +143,6 @@ export default function SavingsGoals() {
                       <div className="h-full rounded-full transition-all duration-1000 ease-out bg-gradient-to-r from-blue-600 to-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)]" style={{ width: `${percentage}%` }}></div>
                     </div>
                     
-                    {/* Mobile-Optimized Bottom Row */}
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-sm font-bold text-slate-400 relative z-10">
                       <div className="flex items-center gap-2 w-full sm:w-auto">
                          <input type="number" placeholder="RM Amount" value={fundAmounts[goal.id] || ""} onChange={(e) => setFundAmounts({...fundAmounts, [goal.id]: e.target.value})} className="flex-1 sm:w-32 p-2.5 md:p-2 bg-slate-950 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-white placeholder-slate-600 text-xs md:text-sm" />

@@ -13,11 +13,8 @@ export default function Home() {
   const [summary, setSummary] = useState({ liquidCash: 0, portfolioValue: 0, epfValue: 0, trueNetWorth: 0 });
   const [baseBalance, setBaseBalance] = useState(0);
   const [allocationData, setAllocationData] = useState<any[]>([]);
-
-  const [isEditingCash, setIsEditingCash] = useState(false);
-  const [editCashInput, setEditCashInput] = useState("");
   
-  // NEW: Privacy Toggle State
+  // Privacy Toggle State
   const [isNetWorthVisible, setIsNetWorthVisible] = useState(true);
 
   useEffect(() => { checkUserAndProfile(); }, []);
@@ -92,17 +89,6 @@ export default function Home() {
     }
   };
 
-  const handleUpdateCash = async () => {
-    if (!userId) return;
-    const newTargetCash = editCashInput === "" ? 0 : parseFloat(editCashInput);
-    const difference = newTargetCash - summary.liquidCash;
-    const newStartingBaseline = baseBalance + difference;
-
-    await supabase.from('profiles').update({ starting_balance: newStartingBaseline }).eq('id', userId);
-    setIsEditingCash(false);
-    checkUserAndProfile();
-  };
-
   if (loading) return <div className="min-h-full flex items-center justify-center text-slate-500 font-medium tracking-wide">Syncing market data...</div>;
 
   if (needsOnboarding) {
@@ -175,22 +161,11 @@ export default function Home() {
         <div className="bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-800/50">
           <div className="flex justify-between items-start mb-6">
             <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20"><div className="w-2 md:w-3 h-2 md:h-3 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div></div>
-            <button onClick={() => { setIsEditingCash(!isEditingCash); setEditCashInput(summary.liquidCash.toString()); }} className="p-2 text-slate-500 hover:text-emerald-400 transition-colors rounded-xl hover:bg-emerald-500/10">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-            </button>
           </div>
           <h3 className="text-xs md:text-sm font-bold text-slate-500 mb-1 tracking-wide uppercase">Liquid Cash</h3>
-          {isEditingCash ? (
-            <div className="flex items-center gap-2 mt-2 animate-in fade-in zoom-in-95 duration-200">
-              <span className="text-slate-400 font-bold">RM</span>
-              <input type="number" step="0.01" value={editCashInput} onChange={(e) => setEditCashInput(e.target.value)} className="w-full bg-slate-950/80 border border-emerald-500/50 rounded-xl p-2 text-white outline-none focus:ring-1 focus:ring-emerald-500 font-bold" placeholder="0.00" />
-              <button onClick={handleUpdateCash} className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-4 py-2 rounded-xl font-extrabold text-sm transition-colors">Save</button>
-            </div>
-          ) : (
-             <p className="text-2xl md:text-3xl font-extrabold text-white transition-all duration-300">
-               {isNetWorthVisible ? `RM ${summary.liquidCash.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 'RM ****'}
-             </p>
-          )}
+          <p className="text-2xl md:text-3xl font-extrabold text-white transition-all duration-300">
+            {isNetWorthVisible ? `RM ${summary.liquidCash.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 'RM ****'}
+          </p>
         </div>
         
         <div className="bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-800/50">

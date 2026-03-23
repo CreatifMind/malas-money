@@ -13,8 +13,35 @@ export default function Portfolio() {
 
   const [investments, setInvestments] = useState<any[]>([]);
   const [summary, setSummary] = useState({ totalInvested: 0, currentValue: 0, totalProfit: 0 });
+  
+  // NEW: Liquid Cash State
+  const [liquidCash, setLiquidCash] = useState(0);
 
-  useEffect(() => { fetchPortfolioData(); }, []);
+  useEffect(() => { 
+    fetchPortfolioData(); 
+    fetchLiquidCash();
+  }, []);
+
+  const fetchLiquidCash = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    
+    const [profileRes, txRes] = await Promise.all([
+      supabase.from('profiles').select('starting_balance').eq('id', session.user.id).single(),
+      supabase.from('transactions').select('*')
+    ]);
+
+    const baseAmount = profileRes.data?.starting_balance || 0;
+    let totalIncome = 0; let totalExpense = 0;
+    
+    if (txRes.data) {
+      txRes.data.forEach((tx) => {
+        if (tx.type === "income") totalIncome += Number(tx.amount);
+        if (tx.type === "expense") totalExpense += Number(tx.amount);
+      });
+    }
+    setLiquidCash(baseAmount + totalIncome - totalExpense);
+  };
 
   const fetchPortfolioData = async () => {
     const { data } = await supabase.from("investments").select("*").order("created_at", { ascending: false });
@@ -78,11 +105,19 @@ export default function Portfolio() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const totalInvested = parseFloat(totalInvestedInput);
+    
+    // Prevent overdrawing Liquid Cash
+    if (totalInvested > liquidCash) {
+      setStatus("Error: Insufficient Liquid Cash!");
+      setTimeout(() => setStatus(""), 3000);
+      return;
+    }
+
     setStatus("Executing Trade...");
     let livePrice = 0; 
     const finnhubKey = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
     const usdToMyrRate = 4.7;
-    const totalInvested = parseFloat(totalInvestedInput);
 
     try {
       if (assetClass === 'Stock' && ticker && finnhubKey) {
@@ -118,16 +153,14 @@ export default function Portfolio() {
 
     if (!error) {
       await supabase.from("transactions").insert([{
-        amount: totalInvested,
-        category: `Investment: ${assetName}`,
-        type: "expense",
-        description: "Asset Purchase",
-        date: new Date().toISOString().split('T')[0]
+        amount: totalInvested, category: `Investment: ${assetName}`, type: "expense",
+        description: "Asset Purchase", date: new Date().toISOString().split('T')[0]
       }]);
 
       setStatus("Success");
       setAssetName(""); setTicker(""); setTotalInvestedInput(""); setAssetClass("Stock");
       fetchPortfolioData();
+      fetchLiquidCash(); // Refresh cash after purchase
       setTimeout(() => setStatus(""), 2000);
     } else {
       setStatus("Error: " + error.message);
@@ -153,9 +186,17 @@ export default function Portfolio() {
 
   return (
     <div className="min-h-full bg-[#0B0F19] rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-8 m-2 md:m-4 shadow-2xl text-slate-50 animate-in fade-in duration-500 pb-20">
-      <header className="mb-6 md:mb-10 px-2 md:px-4">
-        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">Portfolio</h1>
-        <p className="text-slate-400 mt-1 font-medium text-sm md:text-base">Your investments, real-time.</p>
+      
+      {/* HEADER WITH LIQUID CASH BADGE */}
+      <header className="mb-6 md:mb-10 px-2 md:px-4 flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">Portfolio</h1>
+          <p className="text-slate-400 mt-1 font-medium text-sm md:text-base">Your investments, real-time.</p>
+        </div>
+        <div className="bg-emerald-500/10 border border-emerald-500/20 px-3 md:px-5 py-2 md:py-3 rounded-2xl text-right animate-in zoom-in-95">
+          <p className="text-[9px] md:text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-0.5">Available Cash</p>
+          <p className="text-base md:text-xl font-extrabold text-emerald-300">RM {liquidCash.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+        </div>
       </header>
 
       {/* Top Glass Cards */}
@@ -179,7 +220,6 @@ export default function Portfolio() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
-        {/* The Form */}
         <div className="lg:col-span-4">
           <div className="bg-slate-900/50 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-800/50">
             <h2 className="text-lg md:text-xl font-bold mb-6 md:mb-8 text-white">Execute Trade</h2>
@@ -215,7 +255,6 @@ export default function Portfolio() {
           </div>
         </div>
 
-        {/* The Mobile-Optimized Holdings List */}
         <div className="lg:col-span-8">
           <div className="bg-slate-900/30 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-800/30 h-full">
             <div className="flex justify-between items-center mb-6 md:mb-8">
