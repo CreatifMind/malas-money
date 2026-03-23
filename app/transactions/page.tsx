@@ -195,21 +195,23 @@ export default function Transactions() {
                   </div>
                 </div>
 
-                {/* Enhanced Legend with SVG Icons */}
-                <div className="mt-6 overflow-x-auto pb-4 hide-scrollbar">
-                  <div className="flex justify-center gap-6 min-w-max px-2">
-                    {chartData.map((item) => (
-                      <div key={item.name} className="flex flex-col items-center gap-2">
-                        <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg border" style={{ backgroundColor: `${item.color}15`, borderColor: `${item.color}30` }}>
+                {/* Vertical Legend List with SVG Icons */}
+                <div className="mt-6 flex flex-col gap-3">
+                  {chartData.map((item) => (
+                    <div key={item.name} className="flex items-center justify-between p-3 rounded-2xl bg-slate-950/30 border border-slate-800/50 hover:bg-slate-900/50 transition-colors">
+                      <div className="flex items-center gap-4 truncate pr-4">
+                        <div className="w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center shadow-lg border" style={{ backgroundColor: `${item.color}15`, borderColor: `${item.color}30` }}>
                            {getCategoryIcon(item.name, item.color)}
                         </div>
-                        <div className="text-center">
-                          <p className="text-[11px] font-bold text-slate-300 w-20 truncate">{item.name}</p>
-                          <p className="text-[10px] font-extrabold text-white">RM {item.value.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
-                        </div>
+                        {/* The truncate class ensures if it's ridiculously long, it fades nicely instead of breaking the box */}
+                        <span className="text-slate-300 font-bold text-xs md:text-sm truncate" title={item.name}>{item.name}</span>
                       </div>
-                    ))}
-                  </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-white font-extrabold text-sm md:text-base">RM {item.value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                        <p className="text-[10px] md:text-xs text-slate-500 font-bold mt-0.5">{((item.value / monthlyTotal) * 100).toFixed(1)}%</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </>
             )}

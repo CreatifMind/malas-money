@@ -187,7 +187,7 @@ export default function Portfolio() {
               
               <div className="relative group">
                 <select value={assetClass} onChange={(e) => setAssetClass(e.target.value)} className="w-full p-3.5 md:p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/50 text-white appearance-none cursor-pointer text-sm md:text-base">
-                  <option value="Stock">US Stock / ETF</option>
+                  <option value="Stock">Stock / ETF</option>
                   <option value="Crypto">Cryptocurrency</option>
                   <option value="Real Estate">Real Estate</option>
                   <option value="Commodity">Commodity</option>
