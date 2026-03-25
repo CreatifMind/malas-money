@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import MobileHeader from "@/components/MobileHeader";
-import { ThemeProvider } from "@/components/ThemeProvider"; // <-- NEW IMPORT
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { supabase } from "@/utils/supabase";
+import { Analytics } from '@vercel/analytics/react'; // <-- NEW IMPORT
 import "./globals.css";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -64,7 +65,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* STRICT VIEWPORT LOCK */}
           <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
         </head>
-        {/* ADDED suppressHydrationWarning HERE TOO */}
         <body suppressHydrationWarning className="flex h-screen items-center justify-center bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-50 antialiased touch-none overscroll-none transition-colors duration-300">
           <div className="bg-white dark:bg-[#0B0F19] p-8 md:p-12 rounded-[2.5rem] shadow-xl dark:shadow-2xl border border-slate-200 dark:border-slate-800/50 max-w-md w-full mx-4 transition-colors duration-300">
             <div className="text-center mb-8">
@@ -124,6 +124,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </button>
             </div>
           </div>
+          
+          {/* VERCEL ANALYTICS FOR LOGIN PAGE */}
+          <Analytics />
         </body>
       </html>
     );
@@ -155,6 +158,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </ThemeProvider>
 
+        {/* VERCEL ANALYTICS FOR MAIN APP */}
+        <Analytics />
       </body>
     </html>
   );
