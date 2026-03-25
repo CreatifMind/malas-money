@@ -23,7 +23,16 @@ export default function DeductionsHub() {
   const [epfTotal, setEpfTotal] = useState(0);
   const [dividendRate, setDividendRate] = useState("0");
 
-  useEffect(() => { fetchData(); }, []);
+  // NEW: Editable Rates State
+  const [rates, setRates] = useState({ epf: 11, socso: 0.5, eis: 0.2, pcb: null as number | null });
+  const [editingRate, setEditingRate] = useState<string | null>(null);
+  const [tempRate, setTempRate] = useState("");
+
+  useEffect(() => { 
+    fetchData(); 
+    const savedRates = localStorage.getItem('deductionRates');
+    if (savedRates) setRates(JSON.parse(savedRates));
+  }, []);
 
   const fetchData = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -57,6 +66,13 @@ export default function DeductionsHub() {
     setIsEditingSalary(false);
   };
 
+  const saveRate = (key: string) => {
+    const newRates = { ...rates, [key]: tempRate === "" ? null : parseFloat(tempRate) };
+    setRates(newRates);
+    localStorage.setItem('deductionRates', JSON.stringify(newRates));
+    setEditingRate(null);
+  };
+
   const handleAddInsurance = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId) return;
@@ -88,13 +104,25 @@ export default function DeductionsHub() {
     setReliefs({ ...reliefs, [category]: parseFloat(value) || 0 });
   };
 
+  // --- CALCULATIONS ---
   const salaryNum = parseFloat(baseSalary) || 0;
+  const cappedSalary = Math.min(salaryNum, 6000); // RM6,000 ceiling for SOCSO and EIS
   const annualSalary = salaryNum * 12;
-  const empEPF = salaryNum * 0.11;
+
+  // EPF
+  const empEPF = salaryNum * (rates.epf / 100);
   const employerEPF = salaryNum * (salaryNum > 5000 ? 0.12 : 0.13);
   const annualEPF = empEPF * 12;
+
+  // SOCSO & EIS
+  const empSOCSO = cappedSalary * (rates.socso / 100);
+  const employerSOCSO = cappedSalary * 0.0175; // ~1.75%
+  const empEIS = cappedSalary * (rates.eis / 100);
+  const employerEIS = cappedSalary * 0.002; // ~0.2%
+
   const monthlyInsurance = insurances.reduce((acc, curr) => acc + Number(curr.amount), 0);
 
+  // PCB Tax Brackets
   const baseRelief = 9000;
   const epfReliefClaimable = Math.min(annualEPF, 4000);
   const customReliefsTotal = Object.values(reliefs).reduce((a, b) => a + b, 0);
@@ -113,8 +141,47 @@ export default function DeductionsHub() {
   if (chargeableIncome > 20000) { annualTax += (chargeableIncome - 20000) * 0.03; chargeableIncome = 20000; }
   if (chargeableIncome > 5000) { annualTax += (chargeableIncome - 5000) * 0.01; }
 
-  const monthlyTax = annualTax / 12;
-  const netPay = salaryNum - empEPF - monthlyTax - monthlyInsurance;
+  const monthlyTaxBracket = annualTax / 12;
+  const effectivePcbRate = rates.pcb !== null ? rates.pcb : (salaryNum > 0 ? (monthlyTaxBracket / salaryNum) * 100 : 0);
+  const finalMonthlyTax = rates.pcb !== null ? salaryNum * (rates.pcb / 100) : monthlyTaxBracket;
+
+  const netPay = salaryNum - empEPF - empSOCSO - empEIS - finalMonthlyTax - monthlyInsurance;
+
+  // Render Helper for Deduction Rows
+  const renderDeductionRow = (key: string, title: string, currentRate: number, employeeAmount: number, description: React.ReactNode) => {
+    const isEditing = editingRate === key;
+    return (
+      <div key={key} className="flex justify-between items-center p-4 bg-rose-50 dark:bg-rose-500/5 rounded-2xl border border-rose-100 dark:border-rose-500/10 transition-colors duration-300">
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2 mb-1">
+            {isEditing ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{title}</span>
+                <input type="number" step="0.1" value={tempRate} onChange={(e) => setTempRate(e.target.value)} className="w-14 p-1 text-xs rounded border border-rose-200 outline-none text-slate-900 bg-white shadow-inner" autoFocus />
+                <span className="text-sm font-bold text-rose-600">%</span>
+                <button onClick={() => saveRate(key)} className="text-[10px] bg-rose-500 hover:bg-rose-400 text-white px-2 py-1 rounded-md transition-colors shadow-sm">Save</button>
+                <button onClick={() => setEditingRate(null)} className="text-[10px] bg-slate-200 hover:bg-slate-300 text-slate-600 px-2 py-1 rounded-md transition-colors">Cancel</button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{title} ({currentRate.toFixed(1)}%)</span>
+                <button onClick={() => { setEditingRate(key); setTempRate(key === 'pcb' && rates.pcb === null ? currentRate.toFixed(1) : currentRate.toString()); }} className="text-[10px] font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-300 px-2 py-0.5 rounded-md hover:bg-rose-200 dark:hover:bg-rose-500/40 transition-colors shadow-sm">
+                  Edit %
+                </button>
+                {key === 'pcb' && rates.pcb !== null && (
+                  <button onClick={() => saveRate('pcb')} className="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-500 px-2 py-0.5 rounded-md hover:bg-slate-300 transition-colors shadow-sm">
+                    Auto
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <span className="text-[10px] text-slate-500 dark:text-slate-500">{description}</span>
+        </div>
+        <span className="text-base font-extrabold text-rose-600 dark:text-rose-400">-RM {employeeAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-full bg-white dark:bg-[#0B0F19] rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-8 m-2 md:m-4 shadow-xl dark:shadow-2xl text-slate-900 dark:text-slate-50 animate-in fade-in duration-500 pb-20 transition-colors duration-300">
@@ -149,7 +216,7 @@ export default function DeductionsHub() {
             key={tab} onClick={() => setActiveTab(tab)} 
             className={`px-5 py-2.5 rounded-xl text-sm font-bold capitalize whitespace-nowrap transition-all duration-300 ${activeTab === tab ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-100 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800'}`}
           >
-            {tab === 'overview' ? 'Net Pay & EPF' : tab === 'reliefs' ? 'Tax Reliefs (2025)' : 'Insurances'}
+            {tab === 'overview' ? 'Net Pay & Deductions' : tab === 'reliefs' ? 'Tax Reliefs (2025)' : 'Insurances'}
           </button>
         ))}
       </div>
@@ -169,21 +236,11 @@ export default function DeductionsHub() {
                     <span className="text-base font-extrabold text-slate-900 dark:text-white transition-colors duration-300">RM {salaryNum.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
                   </div>
                   
-                  <div className="flex justify-between items-center p-4 bg-rose-50 dark:bg-rose-500/5 rounded-2xl border border-rose-100 dark:border-rose-500/10 transition-colors duration-300">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-rose-600 dark:text-rose-400">EPF Deduction (11%)</span>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-500 mt-1">+ Employer RM {employerEPF.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
-                    </div>
-                    <span className="text-base font-extrabold text-rose-600 dark:text-rose-400">-RM {empEPF.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
-                  </div>
-
-                  <div className="flex justify-between items-center p-4 bg-rose-50 dark:bg-rose-500/5 rounded-2xl border border-rose-100 dark:border-rose-500/10 transition-colors duration-300">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-rose-600 dark:text-rose-400">Est. Tax (PCB)</span>
-                      <span className="text-[10px] text-slate-500 mt-1">Based on YA 2025 brackets</span>
-                    </div>
-                    <span className="text-base font-extrabold text-rose-600 dark:text-rose-400">-RM {monthlyTax.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
-                  </div>
+                  {/* Dynamic Editable Rows */}
+                  {renderDeductionRow('epf', 'EPF Deduction', rates.epf, empEPF, `+ Employer RM ${employerEPF.toLocaleString(undefined, {minimumFractionDigits:2})}`)}
+                  {renderDeductionRow('socso', 'SOCSO Deduction', rates.socso, empSOCSO, `+ Employer RM ${employerSOCSO.toLocaleString(undefined, {minimumFractionDigits:2})} (Capped RM6k)`)}
+                  {renderDeductionRow('eis', 'EIS Deduction', rates.eis, empEIS, `+ Employer RM ${employerEIS.toLocaleString(undefined, {minimumFractionDigits:2})} (Capped RM6k)`)}
+                  {renderDeductionRow('pcb', 'PCB Deduction', effectivePcbRate, finalMonthlyTax, rates.pcb !== null ? 'Custom Rate Overridden' : 'Auto-Bracket (YA 2025)')}
 
                   {monthlyInsurance > 0 && (
                     <div className="flex justify-between items-center p-4 bg-amber-50 dark:bg-amber-500/5 rounded-2xl border border-amber-100 dark:border-amber-500/10 transition-colors duration-300">
@@ -194,6 +251,7 @@ export default function DeductionsHub() {
                 </div>
               </div>
 
+              {/* Payday Note attached to Net Pay */}
               <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-2 transition-colors duration-300">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Est. Net Pay</span>

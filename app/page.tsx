@@ -15,8 +15,6 @@ export default function Home() {
   const [allocationData, setAllocationData] = useState<any[]>([]);
   
   const [isNetWorthVisible, setIsNetWorthVisible] = useState(true);
-  
-  // NEW: Payday Notification State
   const [paydayNote, setPaydayNote] = useState("");
 
   useEffect(() => { checkUserAndProfile(); }, []);
@@ -32,7 +30,6 @@ export default function Home() {
         setNeedsOnboarding(true);
         setLoading(false);
       } else {
-        // Run the Payday Engine BEFORE fetching the dashboard data
         await checkAndDepositPayday(profile.base_salary);
         fetchDashboardData(profile.starting_balance);
       }
@@ -43,40 +40,51 @@ export default function Home() {
   };
 
   // ==========================================
-  // THE SMART PAYDAY ENGINE
+  // THE SMART PAYDAY ENGINE (Now reads Custom Rates!)
   // ==========================================
   const checkAndDepositPayday = async (baseSalary: number) => {
     if (baseSalary <= 0) return;
 
     const today = new Date();
-    // Only trigger if it's the 25th or later in the current month
     if (today.getDate() < 25) return;
 
     const currentMonth = today.toLocaleString('default', { month: 'long' });
     const currentYear = today.getFullYear();
     const descriptionString = `Auto-Deposit: Net Salary (${currentMonth} ${currentYear})`;
 
-    // Check if we already paid you this month!
     const { data: existingTx } = await supabase.from('transactions')
       .select('*')
       .eq('description', descriptionString)
       .limit(1);
 
     if (!existingTx || existingTx.length === 0) {
-      // 1. Fetch live Deductions data to get accurate Net Pay
+      // 1. Fetch live Deductions data
       const [insRes, trRes] = await Promise.all([
         supabase.from('insurances').select('*'),
         supabase.from('tax_reliefs').select('*').eq('year', 2025)
       ]);
 
-      // 2. Replicate the Net Pay Math
+      // 2. Fetch User's Custom Deduction Rates from LocalStorage
+      let rates = { epf: 11, socso: 0.5, eis: 0.2, pcb: null as number | null };
+      const savedRates = localStorage.getItem('deductionRates');
+      if (savedRates) {
+        try {
+          rates = JSON.parse(savedRates);
+        } catch (e) { console.error("Failed to parse rates"); }
+      }
+
       let monthlyInsurance = 0;
       if (insRes.data) insRes.data.forEach(i => monthlyInsurance += Number(i.amount));
 
       let customReliefsTotal = 0;
       if (trRes.data) trRes.data.forEach(r => customReliefsTotal += Number(r.amount));
 
-      const empEPF = baseSalary * 0.11;
+      // 3. Replicate the Exact Net Pay Math with Custom Rates
+      const cappedSalary = Math.min(baseSalary, 6000);
+      const empEPF = baseSalary * (rates.epf / 100);
+      const empSOCSO = cappedSalary * (rates.socso / 100);
+      const empEIS = cappedSalary * (rates.eis / 100);
+      
       const annualSalary = baseSalary * 12;
       const annualEPF = empEPF * 12;
 
@@ -96,10 +104,12 @@ export default function Home() {
       if (chargeableIncome > 20000) { annualTax += (chargeableIncome - 20000) * 0.03; chargeableIncome = 20000; }
       if (chargeableIncome > 5000) { annualTax += (chargeableIncome - 5000) * 0.01; }
 
-      const monthlyTax = annualTax / 12;
-      const finalNetPay = baseSalary - empEPF - monthlyTax - monthlyInsurance;
+      const monthlyTaxBracket = annualTax / 12;
+      const finalMonthlyTax = rates.pcb !== null ? baseSalary * (rates.pcb / 100) : monthlyTaxBracket;
 
-      // 3. Inject the Cash into the Ledger!
+      const finalNetPay = baseSalary - empEPF - empSOCSO - empEIS - finalMonthlyTax - monthlyInsurance;
+
+      // 4. Inject the Cash into the Ledger
       await supabase.from('transactions').insert([{
         amount: finalNetPay,
         category: "Salary",
@@ -108,9 +118,8 @@ export default function Home() {
         date: today.toISOString().split('T')[0]
       }]);
 
-      // 4. Trigger the UI Notification
       setPaydayNote(`RM ${finalNetPay.toLocaleString(undefined, {minimumFractionDigits:2})} added to Liquid Cash for ${currentMonth}.`);
-      setTimeout(() => setPaydayNote(""), 8000); // Hide after 8 seconds
+      setTimeout(() => setPaydayNote(""), 8000);
     }
   };
   // ==========================================
@@ -202,7 +211,6 @@ export default function Home() {
   return (
     <div className="min-h-[calc(100vh-2rem)] bg-white dark:bg-[#0B0F19] rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-8 m-2 md:m-4 shadow-xl dark:shadow-2xl text-slate-900 dark:text-slate-50 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 overflow-hidden relative transition-colors duration-300">
       
-      {/* NEW: PAYDAY TOAST NOTIFICATION */}
       {paydayNote && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-10 fade-in duration-500">
           <div className="bg-emerald-50 dark:bg-emerald-500/10 backdrop-blur-xl border border-emerald-200 dark:border-emerald-500/30 shadow-2xl px-6 py-4 rounded-full flex items-center gap-4">
