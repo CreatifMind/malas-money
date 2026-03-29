@@ -5,7 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import MobileHeader from "@/components/MobileHeader";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { supabase } from "@/utils/supabase";
-import { Analytics } from '@vercel/analytics/react'; // <-- NEW IMPORT
+import { Analytics } from '@vercel/analytics/react'; 
 import "./globals.css";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -125,7 +125,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
           
-          {/* VERCEL ANALYTICS FOR LOGIN PAGE */}
           <Analytics />
         </body>
       </html>
@@ -139,26 +138,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* STRICT VIEWPORT LOCK */}
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
       </head>
-      {/* Added Light/Dark mode classes to the Main App body */}
       <body suppressHydrationWarning className="flex h-screen bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-50 antialiased overflow-hidden touch-none overscroll-none transition-colors duration-300">
         
-        {/* Wrapped everything in the ThemeProvider */}
         <ThemeProvider>
-          {/* Pass state to Sidebar */}
           <Sidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
           
           <div className="flex-1 flex flex-col min-w-0 h-full relative">
-            {/* Mobile Header triggers the open state */}
             <MobileHeader onOpen={() => setIsMenuOpen(true)} />
             
-            {/* Re-enabled safe vertical scrolling here with touch-pan-y */}
             <main className="flex-1 overflow-y-auto touch-pan-y overscroll-none pb-[env(safe-area-inset-bottom)]">
               {children}
             </main>
           </div>
+          
         </ThemeProvider>
 
-        {/* VERCEL ANALYTICS FOR MAIN APP */}
         <Analytics />
       </body>
     </html>

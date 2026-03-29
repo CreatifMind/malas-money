@@ -64,17 +64,26 @@ export default function Portfolio() {
     const finnhubKey = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
     const usdToMyrRate = 4.7; 
     
-    const updatedPortfolio = await Promise.all(currentData.map(async (inv) => {
+    // A tiny helper function to pause JavaScript execution
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    
+    const updatedPortfolio = [];
+
+    // THE FIX: Use a sequential for...of loop instead of Promise.all
+    for (const inv of currentData) {
       let livePrice = inv.current_price;
+      
       try {
         if (inv.asset_class === 'Stock' && inv.ticker_symbol && finnhubKey) {
-          const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${inv.ticker_symbol}&token=${finnhubKey}`);
+          const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${inv.ticker_symbol}&token=${finnhubKey}`, { cache: 'no-store' });
+          if (!res.ok) throw new Error(`Finnhub 429/Error: ${res.status}`);
           const data = await res.json();
           if (data && data.c > 0) livePrice = data.c * usdToMyrRate;
         } 
         else if (inv.asset_class === 'Crypto' && inv.asset_name) {
           const coinId = inv.asset_name.toLowerCase();
-          const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=myr`);
+          const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=myr`, { cache: 'no-store' });
+          if (!res.ok) throw new Error(`CoinGecko 429/Error: ${res.status}`);
           const data = await res.json();
           if (data[coinId] && data[coinId].myr) livePrice = data[coinId].myr;
         } 
@@ -83,18 +92,26 @@ export default function Portfolio() {
           if (nameCheck.includes("gold") || inv.ticker_symbol === "XAU") proxyId = "pax-gold";
           if (nameCheck.includes("silver") || inv.ticker_symbol === "XAG") proxyId = "kinesis-silver";
           if (proxyId) {
-            const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${proxyId}&vs_currencies=myr`);
+            const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${proxyId}&vs_currencies=myr`, { cache: 'no-store' });
+            if (!res.ok) throw new Error(`CoinGecko (Commodity) 429/Error: ${res.status}`);
             const data = await res.json();
             if (data[proxyId] && data[proxyId].myr) livePrice = data[proxyId].myr;
           }
         }
-      } catch (error) { console.error("Failed to fetch live price"); }
+      } catch (error) { 
+        console.error(`Fetch failed for ${inv.ticker_symbol || inv.asset_name}:`, error); 
+      }
 
+      // Update the database if the price changed
       if (livePrice !== inv.current_price) {
         await supabase.from("investments").update({ current_price: livePrice }).eq("id", inv.id);
       }
-      return { ...inv, current_price: livePrice };
-    }));
+      
+      updatedPortfolio.push({ ...inv, current_price: livePrice });
+
+      // THE MAGIC THROTTLE: Wait 300ms before asking the API for the next asset
+      await sleep(300); 
+    }
 
     setInvestments(updatedPortfolio);
     calculateSummary(updatedPortfolio);
@@ -118,13 +135,15 @@ export default function Portfolio() {
 
     try {
       if (assetClass === 'Stock' && ticker && finnhubKey) {
-        const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${finnhubKey}`);
+        const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${finnhubKey}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`Finnhub returned status: ${res.status}`);
         const data = await res.json();
         if (data && data.c > 0) livePrice = data.c * usdToMyrRate;
       } 
       else if (assetClass === 'Crypto' && assetName) {
         const coinId = assetName.toLowerCase();
-        const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=myr`);
+        const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=myr`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`CoinGecko returned status: ${res.status}`);
         const data = await res.json();
         if (data[coinId] && data[coinId].myr) livePrice = data[coinId].myr;
       } 
@@ -133,12 +152,15 @@ export default function Portfolio() {
         if (nameCheck.includes("gold") || ticker.toUpperCase() === "XAU") proxyId = "pax-gold";
         if (nameCheck.includes("silver") || ticker.toUpperCase() === "XAG") proxyId = "kinesis-silver";
         if (proxyId) {
-          const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${proxyId}&vs_currencies=myr`);
+          const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${proxyId}&vs_currencies=myr`, { cache: 'no-store' });
+          if (!res.ok) throw new Error(`CoinGecko (Commodity) returned status: ${res.status}`);
           const data = await res.json();
           if (data[proxyId] && data[proxyId].myr) livePrice = data[proxyId].myr;
         }
       }
-    } catch (error) { console.error("Failed on submit"); }
+    } catch (error) { 
+      console.error("Failed on submit:", error); 
+    }
 
     if (livePrice === 0 || assetClass === 'Real Estate') livePrice = totalInvested;
     const calculatedQuantity = assetClass === 'Real Estate' ? 1 : (totalInvested / livePrice);
