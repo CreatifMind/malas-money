@@ -15,6 +15,8 @@ export default function Home() {
   const [allocationData, setAllocationData] = useState<any[]>([]);
   
   const [isNetWorthVisible, setIsNetWorthVisible] = useState(true);
+  
+  // NEW: Payday Notification State
   const [paydayNote, setPaydayNote] = useState("");
 
   useEffect(() => { checkUserAndProfile(); }, []);
@@ -30,6 +32,7 @@ export default function Home() {
         setNeedsOnboarding(true);
         setLoading(false);
       } else {
+        // Run the Payday Engine BEFORE fetching the dashboard data
         await checkAndDepositPayday(profile.base_salary);
         fetchDashboardData(profile.starting_balance);
       }
@@ -40,51 +43,40 @@ export default function Home() {
   };
 
   // ==========================================
-  // THE SMART PAYDAY ENGINE (Now reads Custom Rates!)
+  // THE SMART PAYDAY ENGINE
   // ==========================================
   const checkAndDepositPayday = async (baseSalary: number) => {
     if (baseSalary <= 0) return;
 
     const today = new Date();
+    // Only trigger if it's the 25th or later in the current month
     if (today.getDate() < 25) return;
 
     const currentMonth = today.toLocaleString('default', { month: 'long' });
     const currentYear = today.getFullYear();
     const descriptionString = `Auto-Deposit: Net Salary (${currentMonth} ${currentYear})`;
 
+    // Check if we already paid you this month!
     const { data: existingTx } = await supabase.from('transactions')
       .select('*')
       .eq('description', descriptionString)
       .limit(1);
 
     if (!existingTx || existingTx.length === 0) {
-      // 1. Fetch live Deductions data
+      // 1. Fetch live Deductions data to get accurate Net Pay
       const [insRes, trRes] = await Promise.all([
         supabase.from('insurances').select('*'),
         supabase.from('tax_reliefs').select('*').eq('year', 2025)
       ]);
 
-      // 2. Fetch User's Custom Deduction Rates from LocalStorage
-      let rates = { epf: 11, socso: 0.5, eis: 0.2, pcb: null as number | null };
-      const savedRates = localStorage.getItem('deductionRates');
-      if (savedRates) {
-        try {
-          rates = JSON.parse(savedRates);
-        } catch (e) { console.error("Failed to parse rates"); }
-      }
-
+      // 2. Replicate the Net Pay Math
       let monthlyInsurance = 0;
       if (insRes.data) insRes.data.forEach(i => monthlyInsurance += Number(i.amount));
 
       let customReliefsTotal = 0;
       if (trRes.data) trRes.data.forEach(r => customReliefsTotal += Number(r.amount));
 
-      // 3. Replicate the Exact Net Pay Math with Custom Rates
-      const cappedSalary = Math.min(baseSalary, 6000);
-      const empEPF = baseSalary * (rates.epf / 100);
-      const empSOCSO = cappedSalary * (rates.socso / 100);
-      const empEIS = cappedSalary * (rates.eis / 100);
-      
+      const empEPF = baseSalary * 0.11;
       const annualSalary = baseSalary * 12;
       const annualEPF = empEPF * 12;
 
@@ -104,12 +96,10 @@ export default function Home() {
       if (chargeableIncome > 20000) { annualTax += (chargeableIncome - 20000) * 0.03; chargeableIncome = 20000; }
       if (chargeableIncome > 5000) { annualTax += (chargeableIncome - 5000) * 0.01; }
 
-      const monthlyTaxBracket = annualTax / 12;
-      const finalMonthlyTax = rates.pcb !== null ? baseSalary * (rates.pcb / 100) : monthlyTaxBracket;
+      const monthlyTax = annualTax / 12;
+      const finalNetPay = baseSalary - empEPF - monthlyTax - monthlyInsurance;
 
-      const finalNetPay = baseSalary - empEPF - empSOCSO - empEIS - finalMonthlyTax - monthlyInsurance;
-
-      // 4. Inject the Cash into the Ledger
+      // 3. Inject the Cash into the Ledger!
       await supabase.from('transactions').insert([{
         amount: finalNetPay,
         category: "Salary",
@@ -118,8 +108,9 @@ export default function Home() {
         date: today.toISOString().split('T')[0]
       }]);
 
+      // 4. Trigger the UI Notification
       setPaydayNote(`RM ${finalNetPay.toLocaleString(undefined, {minimumFractionDigits:2})} added to Liquid Cash for ${currentMonth}.`);
-      setTimeout(() => setPaydayNote(""), 8000);
+      setTimeout(() => setPaydayNote(""), 8000); // Hide after 8 seconds
     }
   };
   // ==========================================
@@ -211,16 +202,18 @@ export default function Home() {
   return (
     <div className="min-h-[calc(100vh-2rem)] bg-white dark:bg-[#0B0F19] rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-8 m-2 md:m-4 shadow-xl dark:shadow-2xl text-slate-900 dark:text-slate-50 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 overflow-hidden relative transition-colors duration-300">
       
+      {/* PAYDAY TOAST NOTIFICATION - Now wider and flatter */}
       {paydayNote && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-10 fade-in duration-500">
-          <div className="bg-emerald-50 dark:bg-emerald-500/10 backdrop-blur-xl border border-emerald-200 dark:border-emerald-500/30 shadow-2xl px-6 py-4 rounded-full flex items-center gap-4">
+          <div className="bg-emerald-50 dark:bg-emerald-500/10 backdrop-blur-xl border border-emerald-200 dark:border-emerald-500/30 shadow-2xl px-10 py-2.5 rounded-2xl flex items-center gap-4">
             <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]">
                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             </div>
-            <div>
-              <p className="text-emerald-800 dark:text-emerald-100 font-extrabold text-sm tracking-wide">Payday Arrived! 🎉</p>
-              <p className="text-emerald-600 dark:text-emerald-300 text-xs font-medium">{paydayNote}</p>
-            </div>
+            {/* The whole text is now on a single wider block */}
+            <p className="flex items-center gap-3 text-emerald-800 dark:text-emerald-100 font-extrabold text-sm tracking-wide">
+              <span>Payday Arrived! 🎉</span>
+              <span className="text-emerald-600 dark:text-emerald-300 text-xs font-medium">{paydayNote}</span>
+            </p>
           </div>
         </div>
       )}
@@ -277,7 +270,7 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="bg-slate-50 dark:bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-200 dark:border-slate-800/50 transition-colors duration-300">
+        <div className="bg-slate-50 dark:bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800/50 transition-colors duration-300">
           <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-violet-100 dark:bg-violet-500/10 flex items-center justify-center mb-6 border border-violet-200 dark:border-violet-500/20 transition-colors duration-300"><div className="w-2 md:w-3 h-2 md:h-3 bg-violet-500 rounded-full shadow-[0_0_10px_rgba(139,92,246,0.5)]"></div></div>
           <h3 className="text-xs md:text-sm font-bold text-slate-500 mb-1 tracking-wide uppercase">Retirement (EPF)</h3>
           <p className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white transition-colors duration-300">
