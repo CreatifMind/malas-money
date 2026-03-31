@@ -23,7 +23,6 @@ export default function DeductionsHub() {
   const [epfTotal, setEpfTotal] = useState(0);
   const [dividendRate, setDividendRate] = useState("0");
 
-  // NEW: Editable Rates State
   const [rates, setRates] = useState({ epf: 11, socso: 0.5, eis: 0.2, pcb: null as number | null });
   const [editingRate, setEditingRate] = useState<string | null>(null);
   const [tempRate, setTempRate] = useState("");
@@ -86,9 +85,20 @@ export default function DeductionsHub() {
     }
   };
 
+  // NEW: Optimistic Delete Function
   const handleDeleteInsurance = async (id: string) => {
-    await supabase.from('insurances').delete().eq('id', id);
-    fetchData();
+    // 1. Instantly vanish the item from the screen for a snappy feel
+    setInsurances(currentInsurances => currentInsurances.filter(ins => ins.id !== id));
+    
+    // 2. Delete it from the Supabase database in the background
+    const { error } = await supabase.from('insurances').delete().eq('id', id);
+    
+    // 3. If the database fails for some reason, fetch data again to restore it
+    if (error) {
+      setStatus("Error deleting policy");
+      fetchData();
+      setTimeout(() => setStatus(""), 4000);
+    }
   };
 
   const handleSaveReliefs = async () => {
@@ -106,7 +116,7 @@ export default function DeductionsHub() {
 
   // --- CALCULATIONS ---
   const salaryNum = parseFloat(baseSalary) || 0;
-  const cappedSalary = Math.min(salaryNum, 6000); // RM6,000 ceiling for SOCSO and EIS
+  const cappedSalary = Math.min(salaryNum, 6000);
   const annualSalary = salaryNum * 12;
 
   // EPF
@@ -116,9 +126,9 @@ export default function DeductionsHub() {
 
   // SOCSO & EIS
   const empSOCSO = cappedSalary * (rates.socso / 100);
-  const employerSOCSO = cappedSalary * 0.0175; // ~1.75%
+  const employerSOCSO = cappedSalary * 0.0175;
   const empEIS = cappedSalary * (rates.eis / 100);
-  const employerEIS = cappedSalary * 0.002; // ~0.2%
+  const employerEIS = cappedSalary * 0.002;
 
   const monthlyInsurance = insurances.reduce((acc, curr) => acc + Number(curr.amount), 0);
 
@@ -147,7 +157,6 @@ export default function DeductionsHub() {
 
   const netPay = salaryNum - empEPF - empSOCSO - empEIS - finalMonthlyTax - monthlyInsurance;
 
-  // Render Helper for Deduction Rows (Mobile-Optimized)
   const renderDeductionRow = (key: string, title: string, currentRate: number, employeeAmount: number, description: React.ReactNode) => {
     const isEditing = editingRate === key;
     return (
@@ -238,7 +247,6 @@ export default function DeductionsHub() {
                     <span className="text-base font-extrabold text-slate-900 dark:text-white transition-colors duration-300 whitespace-nowrap">RM {salaryNum.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits: 2})}</span>
                   </div>
                   
-                  {/* Dynamic Editable Rows */}
                   {renderDeductionRow('epf', 'EPF Deduction', rates.epf, empEPF, `+ Employer RM ${employerEPF.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits: 2})}`)}
                   {renderDeductionRow('socso', 'SOCSO Deduction', rates.socso, empSOCSO, `+ Employer RM ${employerSOCSO.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits: 2})} (Capped RM6k)`)}
                   {renderDeductionRow('eis', 'EIS Deduction', rates.eis, empEIS, `+ Employer RM ${employerEIS.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits: 2})} (Capped RM6k)`)}
@@ -253,7 +261,6 @@ export default function DeductionsHub() {
                 </div>
               </div>
 
-              {/* Payday Note attached to Net Pay */}
               <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-2 transition-colors duration-300">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest whitespace-nowrap">Est. Net Pay</span>
@@ -294,7 +301,6 @@ export default function DeductionsHub() {
                 </p>
               </div>
 
-              {/* Accuracy Reminder Note */}
               <div className="mt-8 p-4 bg-slate-100 dark:bg-slate-950/50 rounded-2xl border border-slate-200 dark:border-slate-800/50 flex gap-3 relative z-10 transition-colors duration-300">
                 <div className="text-indigo-500 mt-0.5 shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
@@ -393,7 +399,8 @@ export default function DeductionsHub() {
                        </div>
                        <div className="flex items-center gap-4">
                          <p className="text-slate-900 dark:text-white font-extrabold text-sm transition-colors duration-300">RM {Number(ins.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}/mo</p>
-                         <button onClick={() => handleDeleteInsurance(ins.id)} className="opacity-100 md:opacity-0 group-hover:opacity-100 p-2 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all">
+                         {/* FIX: Removed md:opacity-0 so the button is ALWAYS visible */}
+                         <button onClick={() => handleDeleteInsurance(ins.id)} className="opacity-100 p-2 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all">
                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                          </button>
                        </div>
