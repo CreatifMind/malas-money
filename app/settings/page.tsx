@@ -7,10 +7,16 @@ import { useTheme } from "@/components/ThemeProvider";
 export default function Settings() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  
+  // Account Deletion State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Prevent hydration mismatch by only rendering theme UI after mount
+  // NEW: Factory Reset State
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetStatus, setResetStatus] = useState("");
+
   useEffect(() => { setMounted(true); }, []);
 
   const handleThemeToggle = () => {
@@ -29,6 +35,46 @@ export default function Settings() {
       alert("Failed to delete account: " + error.message);
       setIsDeleting(false);
       setIsDeleteModalOpen(false);
+    }
+  };
+
+  // NEW: Factory Reset Function
+  const handleFactoryReset = async () => {
+    setIsResetting(true);
+    setResetStatus("Initiating wipe...");
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      
+      const userId = session.user.id;
+
+      // 1. Wipe all transactions
+      setResetStatus("Deleting transactions...");
+      await supabase.from('transactions').delete().eq('user_id', userId);
+
+      // 2. Wipe investments
+      setResetStatus("Liquidating portfolio...");
+      await supabase.from('investments').delete().eq('user_id', userId);
+
+      // 3. Reset the starting balance back to 0
+      setResetStatus("Resetting balances...");
+      await supabase.from('profiles').update({ starting_balance: 0 }).eq('id', userId);
+
+      setResetStatus("Wipe Complete!");
+      
+      // Close the modal and reload the page to clear any cached states
+      setTimeout(() => {
+        setShowResetModal(false);
+        setIsResetting(false);
+        setResetStatus("");
+        window.location.reload(); 
+      }, 1500);
+
+    } catch (error) {
+      console.error(error);
+      setResetStatus("Error during reset.");
+      setIsResetting(false);
     }
   };
 
@@ -76,8 +122,25 @@ export default function Settings() {
         {/* DANGER ZONE SECTION */}
         <section>
           <h2 className="text-sm font-bold text-rose-500 uppercase tracking-widest mb-4 px-2">Danger Zone</h2>
-          <div className="bg-rose-50 dark:bg-rose-500/5 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-rose-200 dark:border-rose-500/20 shadow-sm dark:shadow-xl transition-colors duration-300">
+          <div className="bg-rose-50 dark:bg-rose-500/5 backdrop-blur-xl p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-rose-200 dark:border-rose-500/20 shadow-sm dark:shadow-xl transition-colors duration-300 flex flex-col gap-6">
             
+            {/* FACTORY RESET ROW */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-rose-200 dark:border-rose-500/20">
+              <div>
+                <p className="font-bold text-slate-900 dark:text-white text-base md:text-lg">Factory Reset Data</p>
+                <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-md">
+                  Wipe all transactions and investments, and reset your balances to zero. Keep your account active.
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowResetModal(true)}
+                className="bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500 hover:bg-amber-500 hover:text-white border border-amber-200 dark:border-amber-500/20 font-bold px-6 py-3 rounded-xl transition-all whitespace-nowrap"
+              >
+                Reset Data
+              </button>
+            </div>
+
+            {/* DELETE ACCOUNT ROW */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div>
                 <p className="font-bold text-slate-900 dark:text-white text-base md:text-lg">Delete Account</p>
@@ -98,7 +161,54 @@ export default function Settings() {
 
       </div>
 
-      {/* CONFIRMATION MODAL */}
+      {/* FACTORY RESET MODAL */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-[2rem] p-6 md:p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+            
+            <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-500/10 flex items-center justify-center mx-auto mb-6">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-amber-600 dark:text-amber-400 strokeLinecap-round strokeLinejoin-round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            </div>
+
+            <h3 className="text-xl font-extrabold text-slate-900 dark:text-white mb-2 text-center">Reset all data?</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 leading-relaxed text-center">
+              This will permanently delete all your logged transactions, investments, and reset your starting balance to zero. You cannot recover this data once it is gone.
+            </p>
+
+            {resetStatus && (
+              <p className="text-sm font-bold text-amber-600 dark:text-amber-400 mb-6 animate-pulse text-center">
+                {resetStatus}
+              </p>
+            )}
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowResetModal(false)}
+                disabled={isResetting}
+                className="flex-1 py-3.5 px-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleFactoryReset}
+                disabled={isResetting}
+                className="flex-1 py-3.5 px-4 rounded-xl font-bold text-white bg-amber-600 hover:bg-amber-500 transition-colors shadow-[0_0_20px_rgba(245,158,11,0.4)] disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isResetting ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><polyline points="21 3 21 8 16 8"></polyline></svg>
+                    Wiping...
+                  </>
+                ) : (
+                  "Yes, wipe it all"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ACCOUNT DELETE CONFIRMATION MODAL */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 dark:bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-[2rem] shadow-2xl max-w-md w-full animate-in zoom-in-95">
