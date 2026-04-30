@@ -103,10 +103,12 @@ export default function SavingsGoals() {
             <h2 className="text-lg md:text-xl font-bold mb-6 md:mb-8 text-slate-900 dark:text-white relative z-10 transition-colors duration-300">Set New Target</h2>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4 md:gap-5 relative z-10">
               <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className="w-full p-3.5 md:p-4 bg-white dark:bg-slate-950/50 border border-slate-300 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 transition-all text-sm md:text-base" placeholder="Goal Name (e.g., Japan Trip)" />
+              
               <div className="relative group">
                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 font-bold text-sm md:text-base">RM</div>
-                 <input type="number" step="0.01" required value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} className="w-full pl-12 p-3.5 md:p-4 bg-white dark:bg-slate-950/50 border border-slate-300 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 transition-all text-sm md:text-base" placeholder="Target Amount" />
+                 <input type="number" step="0.01" required value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} className="w-full pl-14 p-3.5 md:p-4 bg-white dark:bg-slate-950/50 border border-slate-300 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 transition-all text-sm md:text-base" placeholder="Target Amount" />
               </div>
+
               <input type="date" required value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="w-full p-3.5 md:p-4 bg-white dark:bg-slate-950/50 border border-slate-300 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 transition-all dark:[color-scheme:dark] text-sm md:text-base" />
               <button type="submit" className="mt-2 md:mt-4 w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-3.5 md:py-4 rounded-2xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.2)] active:scale-[0.98] text-sm md:text-base">
                 {status || "Start Saving"}
