@@ -106,7 +106,8 @@ export default function SavingsGoals() {
               
               <div className="relative group">
                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 font-bold text-sm md:text-base">RM</div>
-                 <input type="number" step="0.01" required value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} className="w-full pl-14 p-3.5 md:p-4 bg-white dark:bg-slate-950/50 border border-slate-300 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 transition-all text-sm md:text-base" placeholder="Target Amount" />
+                 {/* THE FIX: Added 'md:pl-14' to ensure the padding survives desktop screen sizes! */}
+                 <input type="number" step="0.01" required value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} className="w-full p-3.5 pl-14 md:p-4 md:pl-14 bg-white dark:bg-slate-950/50 border border-slate-300 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 transition-all text-sm md:text-base" placeholder="Target Amount" />
               </div>
 
               <input type="date" required value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="w-full p-3.5 md:p-4 bg-white dark:bg-slate-950/50 border border-slate-300 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 transition-all dark:[color-scheme:dark] text-sm md:text-base" />
